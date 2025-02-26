@@ -9,7 +9,7 @@
 
 services:
   postgres:
-    image: postgres
+    image: postgres:17
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
     restart: unless-stopped
@@ -27,7 +27,7 @@ services:
       - POSTGRES_DB=${KOMODO_DATABASE_DB_NAME:-komodo}
 
   ferretdb:
-    image: ghcr.io/ferretdb/ferretdb
+    image: ghcr.io/ferretdb/ferretdb:1
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
     restart: unless-stopped
