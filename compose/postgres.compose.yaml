@@ -15,8 +15,6 @@ services:
     restart: unless-stopped
     logging:
       driver: ${COMPOSE_LOGGING_DRIVER:-local}
-    networks:
-      - default
     # ports:
     #   - 5432:5432
     volumes:
@@ -35,15 +33,13 @@ services:
       - postgres
     logging:
       driver: ${COMPOSE_LOGGING_DRIVER:-local}
-    networks:
-      - default
     # ports:
     #   - 27017:27017
     environment:
       - FERRETDB_POSTGRESQL_URL=postgres://postgres:5432/${KOMODO_DATABASE_DB_NAME:-komodo}
   
   core:
-    image: ghcr.io/mbecker20/komodo:${COMPOSE_KOMODO_IMAGE_TAG:-latest}
+    image: ghcr.io/moghtech/komodo-core:${COMPOSE_KOMODO_IMAGE_TAG:-latest}
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
     restart: unless-stopped
@@ -51,8 +47,6 @@ services:
       - ferretdb
     logging:
       driver: ${COMPOSE_LOGGING_DRIVER:-local}
-    networks:
-      - default
     ports:
       - 9120:9120
     env_file: ./compose.env
@@ -72,16 +66,14 @@ services:
 
   ## Deploy Periphery container using this block,
   ## or deploy the Periphery binary with systemd using 
-  ## https://github.com/mbecker20/komodo/tree/main/scripts
+  ## https://github.com/moghtech/komodo/tree/main/scripts
   periphery:
-    image: ghcr.io/mbecker20/periphery:${COMPOSE_KOMODO_IMAGE_TAG:-latest}
+    image: ghcr.io/moghtech/komodo-periphery:${COMPOSE_KOMODO_IMAGE_TAG:-latest}
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
     restart: unless-stopped
     logging:
       driver: ${COMPOSE_LOGGING_DRIVER:-local}
-    networks:
-      - default
     env_file: ./compose.env
     environment:
       PERIPHERY_REPO_DIR: ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}/repos
@@ -95,7 +87,7 @@ services:
       - /proc:/proc
       ## Specify the Periphery agent root directory.
       ## Must be the same inside and outside the container,
-      ## or docker will get confused. See https://github.com/mbecker20/komodo/discussions/180.
+      ## or docker will get confused. See https://github.com/moghtech/komodo/discussions/180.
       ## Default: /etc/komodo.
       - ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}:${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}
 
@@ -104,6 +96,3 @@ volumes:
   pg-data:
   # Core
   repo-cache:
-
-networks:
-  default: {}
