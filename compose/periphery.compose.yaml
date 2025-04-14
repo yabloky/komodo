@@ -17,6 +17,7 @@ services:
     environment:
       PERIPHERY_REPO_DIR: ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}/repos
       PERIPHERY_STACK_DIR: ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}/stacks
+      PERIPHERY_BUILD_DIR: ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}/builds
       PERIPHERY_SSL_KEY_FILE: ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}/ssl/key.pem
       PERIPHERY_SSL_CERT_FILE: ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}/ssl/cert.pem
       ## Pass the same passkey as used by the Komodo Core connecting to this Periphery agent.
@@ -37,3 +38,9 @@ services:
       ## or docker will get confused. See https://github.com/moghtech/komodo/discussions/180.
       ## Default: /etc/komodo.
       - ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}:${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}
+    ## If periphery is being run remote from the core server, ports need
+    ## to be exposed on the host.
+    # ports:
+    #   - 8120:8120
+    ## If you want to use a custom periphery config file, use command to pass it to periphery.
+    # command: periphery --config-path ${PERIPHERY_ROOT_DIRECTORY:-/etc/komodo}/periphery.config.toml

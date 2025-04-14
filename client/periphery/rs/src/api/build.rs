@@ -1,4 +1,4 @@
-use komodo_client::entities::update::Log;
+use komodo_client::entities::{FileContents, update::Log};
 use resolver_api::Resolve;
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +18,42 @@ pub struct Build {
 }
 
 pub type BuildResponse = Vec<Log>;
+
+//
+
+/// Get the dockerfile contents on the host, for builds using
+/// `files_on_host`.
+#[derive(Debug, Clone, Serialize, Deserialize, Resolve)]
+#[response(GetDockerfileContentsOnHostResponse)]
+#[error(serror::Error)]
+pub struct GetDockerfileContentsOnHost {
+  /// The name of the build
+  pub name: String,
+  /// The build path for the build.
+  pub build_path: String,
+  /// The dockerfile path for the build, relative to the build_path
+  pub dockerfile_path: String,
+}
+
+pub type GetDockerfileContentsOnHostResponse = FileContents;
+
+//
+
+/// Write the dockerfile contents to the file on the host, for build using
+/// `files_on_host`.
+#[derive(Debug, Clone, Serialize, Deserialize, Resolve)]
+#[response(Log)]
+#[error(serror::Error)]
+pub struct WriteDockerfileContentsToHost {
+  /// The name of the build
+  pub name: String,
+  /// The build path for the build.
+  pub build_path: String,
+  /// The dockerfile path for the build, relative to the build_path
+  pub dockerfile_path: String,
+  /// The contents to write.
+  pub contents: String,
+}
 
 //
 

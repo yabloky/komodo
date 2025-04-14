@@ -114,10 +114,14 @@ pub struct Env {
 
   /// Override `port`
   pub periphery_port: Option<u16>,
+  /// Override `bind_ip`
+  pub periphery_bind_ip: Option<String>,
   /// Override `repo_dir`
   pub periphery_repo_dir: Option<PathBuf>,
   /// Override `stack_dir`
   pub periphery_stack_dir: Option<PathBuf>,
+  /// Override `build_dir`
+  pub periphery_build_dir: Option<PathBuf>,
   /// Override `stats_polling_rate`
   pub periphery_stats_polling_rate: Option<Timelength>,
   /// Override `legacy_compose_cli`
@@ -162,6 +166,11 @@ pub struct PeripheryConfig {
   #[serde(default = "default_periphery_port")]
   pub port: u16,
 
+  /// IP address the periphery server binds to.
+  /// Default: [::].
+  #[serde(default = "default_periphery_bind_ip")]
+  pub bind_ip: String,
+
   /// The system directory where Komodo managed repos will be cloned.
   /// Default: `/etc/komodo/repos`
   #[serde(default = "default_repo_dir")]
@@ -171,6 +180,11 @@ pub struct PeripheryConfig {
   /// Default: `/etc/komodo/stacks`
   #[serde(default = "default_stack_dir")]
   pub stack_dir: PathBuf,
+
+  /// The system directory where builds will managed.
+  /// Default: `/etc/komodo/builds`
+  #[serde(default = "default_build_dir")]
+  pub build_dir: PathBuf,
 
   /// The rate at which the system stats will be polled to update the cache.
   /// Default: `5-sec`
@@ -244,12 +258,20 @@ fn default_periphery_port() -> u16 {
   8120
 }
 
+fn default_periphery_bind_ip() -> String {
+  "[::]".to_string()
+}
+
 fn default_repo_dir() -> PathBuf {
   "/etc/komodo/repos".parse().unwrap()
 }
 
 fn default_stack_dir() -> PathBuf {
   "/etc/komodo/stacks".parse().unwrap()
+}
+
+fn default_build_dir() -> PathBuf {
+  "/etc/komodo/builds".parse().unwrap()
 }
 
 fn default_stats_polling_rate() -> Timelength {
@@ -272,8 +294,10 @@ impl Default for PeripheryConfig {
   fn default() -> Self {
     Self {
       port: default_periphery_port(),
+      bind_ip: default_periphery_bind_ip(),
       repo_dir: default_repo_dir(),
       stack_dir: default_stack_dir(),
+      build_dir: default_build_dir(),
       stats_polling_rate: default_stats_polling_rate(),
       legacy_compose_cli: Default::default(),
       logging: Default::default(),
@@ -295,8 +319,10 @@ impl PeripheryConfig {
   pub fn sanitized(&self) -> PeripheryConfig {
     PeripheryConfig {
       port: self.port,
+      bind_ip: self.bind_ip.clone(),
       repo_dir: self.repo_dir.clone(),
       stack_dir: self.stack_dir.clone(),
+      build_dir: self.build_dir.clone(),
       stats_polling_rate: self.stats_polling_rate,
       legacy_compose_cli: self.legacy_compose_cli,
       logging: self.logging.clone(),

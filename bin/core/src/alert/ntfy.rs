@@ -1,7 +1,5 @@
 use std::sync::OnceLock;
 
-use serde::Serialize;
-
 use super::*;
 
 #[instrument(level = "debug")]
@@ -14,7 +12,8 @@ pub async fn send_alert(
     AlertData::Test { id, name } => {
       let link = resource_link(ResourceTargetVariant::Alerter, id);
       format!(
-        "{level} | If you see this message, then Alerter **{name}** is **working**\n{link}"
+        "{level} | If you see this message, then Alerter {} is working\n{link}",
+        name,
       )
     }
     AlertData::ServerUnreachable {
@@ -28,16 +27,18 @@ pub async fn send_alert(
       match alert.level {
         SeverityLevel::Ok => {
           format!(
-            "{level} | **{name}**{region} is now **reachable**\n{link}"
+            "{level} | {}{} is now reachable\n{link}",
+            name, region
           )
         }
         SeverityLevel::Critical => {
           let err = err
             .as_ref()
-            .map(|e| format!("\n**error**: {e:#?}"))
+            .map(|e| format!("\nerror: {:#?}", e))
             .unwrap_or_default();
           format!(
-            "{level} | **{name}**{region} is **unreachable** ❌\n{link}{err}"
+            "{level} | {}{} is unreachable ❌\n{link}{err}",
+            name, region
           )
         }
         _ => unreachable!(),
@@ -52,7 +53,8 @@ pub async fn send_alert(
       let region = fmt_region(region);
       let link = resource_link(ResourceTargetVariant::Server, id);
       format!(
-        "{level} | **{name}**{region} cpu usage at **{percentage:.1}%**\n{link}"
+        "{level} | {}{} cpu usage at {percentage:.1}%\n{link}",
+        name, region,
       )
     }
     AlertData::ServerMem {
@@ -66,7 +68,8 @@ pub async fn send_alert(
       let link = resource_link(ResourceTargetVariant::Server, id);
       let percentage = 100.0 * used_gb / total_gb;
       format!(
-        "{level} | **{name}**{region} memory usage at **{percentage:.1}%** 💾\n\nUsing **{used_gb:.1} GiB** / **{total_gb:.1} GiB**\n{link}"
+        "{level} | {}{} memory usage at {percentage:.1}%💾\n\nUsing {used_gb:.1} GiB / {total_gb:.1} GiB\n{link}",
+        name, region,
       )
     }
     AlertData::ServerDisk {
@@ -81,7 +84,8 @@ pub async fn send_alert(
       let link = resource_link(ResourceTargetVariant::Server, id);
       let percentage = 100.0 * used_gb / total_gb;
       format!(
-        "{level} | **{name}**{region} disk usage at **{percentage:.1}%** 💿\nmount point: `{path:?}`\nusing **{used_gb:.1} GiB** / **{total_gb:.1} GiB**\n{link}"
+        "{level} | {}{} disk usage at {percentage:.1}%💿\nmount point: {:?}\nusing {used_gb:.1} GiB / {total_gb:.1} GiB\n{link}",
+        name, region, path,
       )
     }
     AlertData::ContainerStateChange {
@@ -93,9 +97,10 @@ pub async fn send_alert(
       to,
     } => {
       let link = resource_link(ResourceTargetVariant::Deployment, id);
-      let to = fmt_docker_container_state(to);
+      let to_state = fmt_docker_container_state(to);
       format!(
-        "📦 Deployment **{name}** is now **{to}**\nserver: **{server_name}**\nprevious: **{from}**\n{link}"
+        "📦Deployment {} is now {}\nserver: {}\nprevious: {}\n{link}",
+        name, to_state, server_name, from,
       )
     }
     AlertData::DeploymentImageUpdateAvailable {
@@ -107,7 +112,8 @@ pub async fn send_alert(
     } => {
       let link = resource_link(ResourceTargetVariant::Deployment, id);
       format!(
-        "⬆ Deployment **{name}** has an update available\nserver: **{server_name}**\nimage: **{image}**\n{link}"
+        "⬆ Deployment {} has an update available\nserver: {}\nimage: {}\n{link}",
+        name, server_name, image,
       )
     }
     AlertData::DeploymentAutoUpdated {
@@ -119,7 +125,8 @@ pub async fn send_alert(
     } => {
       let link = resource_link(ResourceTargetVariant::Deployment, id);
       format!(
-        "⬆ Deployment **{name}** was updated automatically ⏫\nserver: **{server_name}**\nimage: **{image}**\n{link}"
+        "⬆ Deployment {} was updated automatically\nserver: {}\nimage: {}\n{link}",
+        name, server_name, image,
       )
     }
     AlertData::StackStateChange {
@@ -131,9 +138,10 @@ pub async fn send_alert(
       to,
     } => {
       let link = resource_link(ResourceTargetVariant::Stack, id);
-      let to = fmt_stack_state(to);
+      let to_state = fmt_stack_state(to);
       format!(
-        "🥞 Stack **{name}** is now {to}\nserver: **{server_name}**\nprevious: **{from}**\n{link}"
+        "🥞 Stack {} is now {}\nserver: {}\nprevious: {}\n{link}",
+        name, to_state, server_name, from,
       )
     }
     AlertData::StackImageUpdateAvailable {
@@ -146,7 +154,8 @@ pub async fn send_alert(
     } => {
       let link = resource_link(ResourceTargetVariant::Stack, id);
       format!(
-        "⬆ Stack **{name}** has an update available\nserver: **{server_name}**\nservice: **{service}**\nimage: **{image}**\n{link}"
+        "⬆ Stack {} has an update available\nserver: {}\nservice: {}\nimage: {}\n{link}",
+        name, server_name, service, image,
       )
     }
     AlertData::StackAutoUpdated {
@@ -159,9 +168,10 @@ pub async fn send_alert(
       let link = resource_link(ResourceTargetVariant::Stack, id);
       let images_label =
         if images.len() > 1 { "images" } else { "image" };
-      let images = images.join(", ");
+      let images_str = images.join(", ");
       format!(
-        "⬆ Stack **{name}** was updated automatically ⏫\nserver: **{server_name}**\n{images_label}: **{images}**\n{link}"
+        "⬆ Stack {} was updated automatically ⏫\nserver: {}\n{}: {}\n{link}",
+        name, server_name, images_label, images_str,
       )
     }
     AlertData::AwsBuilderTerminationFailed {
@@ -169,81 +179,65 @@ pub async fn send_alert(
       message,
     } => {
       format!(
-        "{level} | Failed to terminated AWS builder instance\ninstance id: **{instance_id}**\n{message}"
+        "{level} | Failed to terminate AWS builder instance\ninstance id: {}\n{}",
+        instance_id, message,
       )
     }
     AlertData::ResourceSyncPendingUpdates { id, name } => {
       let link =
         resource_link(ResourceTargetVariant::ResourceSync, id);
       format!(
-        "{level} | Pending resource sync updates on **{name}**\n{link}"
+        "{level} | Pending resource sync updates on {}\n{link}",
+        name,
       )
     }
     AlertData::BuildFailed { id, name, version } => {
       let link = resource_link(ResourceTargetVariant::Build, id);
       format!(
-        "{level} | Build **{name}** failed\nversion: **v{version}**\n{link}"
+        "{level} | Build {} failed\nversion: v{}\n{link}",
+        name, version,
       )
     }
     AlertData::RepoBuildFailed { id, name } => {
       let link = resource_link(ResourceTargetVariant::Repo, id);
-      format!("{level} | Repo build for **{name}** failed\n{link}")
+      format!("{level} | Repo build for {} failed\n{link}", name,)
     }
     AlertData::None {} => Default::default(),
   };
+
   if !content.is_empty() {
-    let vars_and_secrets = get_variables_and_secrets().await?;
-    let mut global_replacers = HashSet::new();
-    let mut secret_replacers = HashSet::new();
-    let mut url_interpolated = url.to_string();
-
-    // interpolate variables and secrets into the url
-    interpolate_variables_secrets_into_string(
-      &vars_and_secrets,
-      &mut url_interpolated,
-      &mut global_replacers,
-      &mut secret_replacers,
-    )?;
-
-    send_message(&url_interpolated, &content)
-      .await
-      .map_err(|e| {
-        let replacers =
-          secret_replacers.into_iter().collect::<Vec<_>>();
-        let sanitized_error =
-          svi::replace_in_string(&format!("{e:?}"), &replacers);
-        anyhow::Error::msg(format!(
-          "Error with slack request: {}",
-          sanitized_error
-        ))
-      })?;
+    send_message(url, content).await?;
   }
   Ok(())
 }
 
 async fn send_message(
   url: &str,
-  content: &str,
+  content: String,
 ) -> anyhow::Result<()> {
-  let body = DiscordMessageBody { content };
-
   let response = http_client()
     .post(url)
-    .json(&body)
+    .header("Title", "ntfy Alert")
+    .body(content)
     .send()
     .await
     .context("Failed to send message")?;
 
   let status = response.status();
-
   if status.is_success() {
+    debug!("ntfy alert sent successfully: {}", status);
     Ok(())
   } else {
     let text = response.text().await.with_context(|| {
-      format!("Failed to send message to Discord | {status} | failed to get response text")
+      format!(
+        "Failed to send message to ntfy | {} | failed to get response text",
+        status
+      )
     })?;
-    Err(anyhow::anyhow!(
-      "Failed to send message to Discord | {status} | {text}"
+    Err(anyhow!(
+      "Failed to send message to ntfy | {} | {}",
+      status,
+      text
     ))
   }
 }
@@ -251,9 +245,4 @@ async fn send_message(
 fn http_client() -> &'static reqwest::Client {
   static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
   CLIENT.get_or_init(reqwest::Client::new)
-}
-
-#[derive(Serialize)]
-struct DiscordMessageBody<'a> {
-  content: &'a str,
 }

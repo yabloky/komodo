@@ -18,6 +18,12 @@
 ## Default: 8120
 port = 8120
 
+## The IP address the periphery server will bind to.
+## The default will allow it to accept external IPv4 and IPv6 connections.
+## Env: PERIPHERY_BIND_IP
+## Default: [::]
+bind_ip = "[::]"
+
 ## The directory periphery will use to manage repos.
 ## The periphery user must have write access to this directory.
 ## Env: PERIPHERY_REPO_DIR
@@ -29,6 +35,12 @@ repo_dir = "/etc/komodo/repos"
 ## Env: PERIPHERY_STACK_DIR
 ## Default: /etc/komodo/stacks
 stack_dir = "/etc/komodo/stacks"
+
+## The directory periphery will use to manage builds.
+## The periphery user must have write access to this directory.
+## Env: PERIPHERY_BUILD_DIR
+## Default: /etc/komodo/builds
+build_dir = "/etc/komodo/builds"
 
 ## How often Periphery polls the host for system stats,
 ## like CPU / memory usage.

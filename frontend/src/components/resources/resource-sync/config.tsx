@@ -90,7 +90,7 @@ export const ResourceSyncConfig = ({
   const disabled = global_disabled || perms !== Types.PermissionLevel.Write;
 
   const git_provider = update.git_provider ?? config.git_provider;
-  const integration = getWebhookIntegration(integrations, git_provider);
+  const webhook_integration = getWebhookIntegration(integrations, git_provider);
 
   const mode = getSyncMode(update, config);
   const managed = update.managed ?? config.managed ?? false;
@@ -138,6 +138,7 @@ export const ResourceSyncConfig = ({
           <ConfigItem
             label="Choose Mode"
             description="Will the file contents be defined in UI, stored on the server, or pulled from a git repo?"
+            boldLabel
           >
             <Select
               value={mode}
@@ -331,8 +332,7 @@ export const ResourceSyncConfig = ({
         match_tags,
         {
           label: "Git Webhooks",
-          description:
-            "Configure your repo provider to send webhooks to Komodo",
+          description: `Copy the webhook given here, and configure your ${webhook_integration}-style repo provider to send webhooks to Komodo`,
           contentHidden: !show.webhooks,
           actions: (
             <ShowHideButton
@@ -360,7 +360,7 @@ export const ResourceSyncConfig = ({
                 description="Trigger an update of the pending sync cache, to display the changes in the UI on push."
               >
                 <CopyWebhook
-                  integration={integration}
+                  integration={webhook_integration}
                   path={`/sync/${id_or_name === "Id" ? id : name}/refresh`}
                 />
               </ConfigItem>
@@ -371,7 +371,7 @@ export const ResourceSyncConfig = ({
                 description="Trigger an execution of the sync on push."
               >
                 <CopyWebhook
-                  integration={integration}
+                  integration={webhook_integration}
                   path={`/sync/${id_or_name === "Id" ? id : name}/sync`}
                 />
               </ConfigItem>

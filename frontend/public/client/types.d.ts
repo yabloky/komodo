@@ -43,7 +43,10 @@ export interface Resource<Config, Info> {
     base_permission?: PermissionLevel;
 }
 export interface ActionConfig {
-    /** Typescript file contents using pre-initialized `komodo` client. */
+    /**
+     * Typescript file contents using pre-initialized `komodo` client.
+     * Supports variable / secret interpolation.
+     */
     file_contents?: string;
     /** Whether incoming webhooks actually trigger action. */
     webhook_enabled: boolean;
@@ -119,6 +122,11 @@ export type AlerterEndpoint =
  | {
     type: "Discord";
     params: DiscordAlerterEndpoint;
+}
+/** Send alert to Ntfy */
+ | {
+    type: "Ntfy";
+    params: NtfyAlerterEndpoint;
 };
 /** Used to reference a specific resource across all resource types */
 export type ResourceTarget = {
@@ -216,10 +224,6 @@ export interface Version {
     minor: number;
     patch: number;
 }
-export interface SystemCommand {
-    path?: string;
-    command?: string;
-}
 /** Configuration for an image registry */
 export interface ImageRegistryConfig {
     /**
@@ -234,6 +238,10 @@ export interface ImageRegistryConfig {
      * Empty string means no organization.
      */
     organization?: string;
+}
+export interface SystemCommand {
+    path?: string;
+    command?: string;
 }
 /** The build configuration. */
 export interface BuildConfig {
@@ -296,8 +304,13 @@ export interface BuildConfig {
      * If its an empty string, use the default secret from the config.
      */
     webhook_secret?: string;
-    /** The optional command run after repo clone and before docker build. */
-    pre_build?: SystemCommand;
+    /**
+     * If this is checked, the build will source the files on the host.
+     * Use `build_path` and `dockerfile_path` to specify the path on the host.
+     * This is useful for those who wish to setup their files on the host,
+     * rather than defining the contents in UI or in a git repo.
+     */
+    files_on_host?: boolean;
     /**
      * The path of the docker build context relative to the root of the repo.
      * Default: "." (the root of the repo).
@@ -313,6 +326,13 @@ export interface BuildConfig {
     use_buildx?: boolean;
     /** Any extra docker cli arguments to be included in the build command */
     extra_args?: string[];
+    /** The optional command run after repo clone and before docker build. */
+    pre_build?: SystemCommand;
+    /**
+     * UI defined dockerfile contents.
+     * Supports variable / secret interpolation.
+     */
+    dockerfile?: string;
     /**
      * Docker build arguments.
      *
@@ -336,11 +356,27 @@ export interface BuildConfig {
     labels?: string;
 }
 export interface BuildInfo {
+    /** The timestamp build was last built. */
     last_built_at: I64;
     /** Latest built short commit hash, or null. */
     built_hash?: string;
     /** Latest built commit message, or null. Only for repo based stacks */
     built_message?: string;
+    /**
+     * The last built dockerfile contents.
+     * This is updated whenever Komodo successfully runs the build.
+     */
+    built_contents?: string;
+    /** The absolute path to the file */
+    remote_path?: string;
+    /**
+     * The remote dockerfile contents, whether on host or in repo.
+     * This is updated whenever Komodo refreshes the build cache.
+     * It will be empty if the dockerfile is defined directly in the build config.
+     */
+    remote_contents?: string;
+    /** If there was an error in getting the remote contents, it will be here. */
+    remote_error?: string;
     /** Latest remote short commit hash, or null. */
     latest_hash?: string;
     /** Latest remote commit message, or null */
@@ -358,26 +394,28 @@ export declare enum BuildState {
     Unknown = "Unknown"
 }
 export interface BuildListItemInfo {
+    /** State of the build. Reflects whether most recent build successful. */
+    state: BuildState;
     /** Unix timestamp in milliseconds of last build */
     last_built_at: I64;
     /** The current version of the build */
     version: Version;
     /** The builder attached to build. */
     builder_id: string;
+    /** Whether build is in files on host mode. */
+    files_on_host: boolean;
     /** The git provider domain */
-    git_provider: string;
-    /** The image registry domain */
-    image_registry_domain: string;
+    git_provider?: string;
     /** The repo used as the source of the build */
-    repo: string;
+    repo?: string;
     /** The branch of the repo */
-    branch: string;
-    /** State of the build. Reflects whether most recent build successful. */
-    state: BuildState;
+    branch?: string;
     /** Latest built short commit hash, or null. */
     built_hash?: string;
     /** Latest short commit hash, or null. Only for repo based stacks */
     latest_hash?: string;
+    /** The image registry domain */
+    image_registry_domain?: string;
 }
 export type BuildListItem = ResourceListItem<BuildListItemInfo>;
 export interface BuildQuerySpecifics {
@@ -1623,6 +1661,12 @@ export interface ServerConfig {
      */
     timeout_seconds: I64;
     /**
+     * An optional override passkey to use
+     * to authenticate with periphery agent.
+     * If this is empty, will use passkey in core config.
+     */
+    passkey?: string;
+    /**
      * Sometimes the system stats reports a mount path that is not desired.
      * Use this field to filter it out from the report.
      */
@@ -1732,31 +1776,6 @@ export interface StackConfig {
     destroy_before_deploy?: boolean;
     /** Whether to skip secret interpolation into the stack environment variables. */
     skip_secret_interp?: boolean;
-    /**
-     * If this is checked, the stack will source the files on the host.
-     * Use `run_directory` and `file_paths` to specify the path on the host.
-     * This is useful for those who wish to setup their files on the host using SSH or similar,
-     * rather than defining the contents in UI or in a git repo.
-     */
-    files_on_host?: boolean;
-    /** Directory to change to (`cd`) before running `docker compose up -d`. */
-    run_directory?: string;
-    /**
-     * Add paths to compose files, relative to the run path.
-     * If this is empty, will use file `compose.yaml`.
-     */
-    file_paths?: string[];
-    /**
-     * The name of the written environment file before `docker compose up`.
-     * Relative to the run directory root.
-     * Default: .env
-     */
-    env_file_path: string;
-    /**
-     * Add additional env files to attach with `--env-file`.
-     * Relative to the run directory root.
-     */
-    additional_env_files?: string[];
     /** The git provider domain. Default: github.com */
     git_provider: string;
     /**
@@ -1796,6 +1815,31 @@ export interface StackConfig {
      * If this option is enabled, will always run `DeployStack` without diffing.
      */
     webhook_force_deploy?: boolean;
+    /**
+     * If this is checked, the stack will source the files on the host.
+     * Use `run_directory` and `file_paths` to specify the path on the host.
+     * This is useful for those who wish to setup their files on the host,
+     * rather than defining the contents in UI or in a git repo.
+     */
+    files_on_host?: boolean;
+    /** Directory to change to (`cd`) before running `docker compose up -d`. */
+    run_directory?: string;
+    /**
+     * Add paths to compose files, relative to the run path.
+     * If this is empty, will use file `compose.yaml`.
+     */
+    file_paths?: string[];
+    /**
+     * The name of the written environment file before `docker compose up`.
+     * Relative to the run directory root.
+     * Default: .env
+     */
+    env_file_path: string;
+    /**
+     * Add additional env files to attach with `--env-file`.
+     * Relative to the run directory root.
+     */
+    additional_env_files?: string[];
     /** Whether to send StackStateChange alerts for this stack. */
     send_alerts: boolean;
     /** Used with `registry_account` to login to a registry before docker compose up. */
@@ -1827,6 +1871,7 @@ export interface StackConfig {
      * The contents of the file directly, for management in the UI.
      * If this is empty, it will fall back to checking git config for
      * repo based compose file.
+     * Supports variable / secret interpolation.
      */
     file_contents?: string;
     /**
@@ -2137,6 +2182,7 @@ export declare enum Operation {
     DeleteBuild = "DeleteBuild",
     RunBuild = "RunBuild",
     CancelBuild = "CancelBuild",
+    WriteDockerfile = "WriteDockerfile",
     CreateRepo = "CreateRepo",
     UpdateRepo = "UpdateRepo",
     RenameRepo = "RenameRepo",
@@ -3869,6 +3915,8 @@ export interface CloneArgs {
     branch: string;
     /** Specific commit hash. Optional */
     commit?: string;
+    /** Use PERIPHERY_BUILD_DIR as the parent folder for the clone. */
+    is_build: boolean;
     /** The clone destination path */
     destination?: string;
     /** Command to run after the repo has been cloned */
@@ -4924,6 +4972,25 @@ export interface GetDeploymentsSummaryResponse {
     unhealthy: I64;
     /** The number of Deployments with Unknown state */
     unknown: I64;
+}
+/**
+ * Gets a summary of data relating to all containers.
+ * Response: [GetDockerContainersSummaryResponse].
+ */
+export interface GetDockerContainersSummary {
+}
+/** Response for [GetDockerContainersSummary] */
+export interface GetDockerContainersSummaryResponse {
+    /** The total number of Containers */
+    total: number;
+    /** The number of Containers with Running state */
+    running: number;
+    /** The number of Containers with Stopped or Paused or Created state */
+    stopped: number;
+    /** The number of Containers with Restarting or Dead state */
+    unhealthy: number;
+    /** The number of Containers with Unknown state */
+    unknown: number;
 }
 /**
  * Get a specific docker registry account.
@@ -5988,6 +6055,11 @@ export interface NameAndId {
     name: string;
     id: string;
 }
+/** Configuration for a Ntfy alerter. */
+export interface NtfyAlerterEndpoint {
+    /** The ntfy topic URL */
+    url: string;
+}
 /** Pauses all containers on the target server. Response: [Update] */
 export interface PauseAllContainers {
     /** Name or id */
@@ -7031,6 +7103,13 @@ export interface UrlBuilderConfig {
     /** A custom passkey to use. Otherwise, use the default passkey. */
     passkey?: string;
 }
+/** Update dockerfile contents in Files on Server or Git Repo mode. Response: [Update]. */
+export interface WriteBuildFileContents {
+    /** The name or id of the target Build. */
+    build: string;
+    /** The dockerfile contents to write. */
+    contents: string;
+}
 /** Update file contents in Files on Server or Git Repo mode. Response: [Update]. */
 export interface WriteStackFileContents {
     /** The name or id of the target Stack. */
@@ -7402,6 +7481,9 @@ export type ReadRequest = {
     type: "InspectDockerVolume";
     params: InspectDockerVolume;
 } | {
+    type: "GetDockerContainersSummary";
+    params: GetDockerContainersSummary;
+} | {
     type: "ListAllDockerContainers";
     params: ListAllDockerContainers;
 } | {
@@ -7736,6 +7818,9 @@ export type WriteRequest = {
 } | {
     type: "RenameBuild";
     params: RenameBuild;
+} | {
+    type: "WriteBuildFileContents";
+    params: WriteBuildFileContents;
 } | {
     type: "RefreshBuildCache";
     params: RefreshBuildCache;
