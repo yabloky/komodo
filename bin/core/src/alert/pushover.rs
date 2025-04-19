@@ -194,8 +194,7 @@ pub async fn send_alert(
     AlertData::BuildFailed { id, name, version } => {
       let link = resource_link(ResourceTargetVariant::Build, id);
       format!(
-        "{level} | Build {} failed\nversion: v{}\n{link}",
-        name, version,
+        "{level} | Build {name} failed\nversion: v{version}\n{link}",
       )
     }
     AlertData::RepoBuildFailed { id, name } => {
@@ -233,27 +232,32 @@ async fn send_message(
   url: &str,
   content: String,
 ) -> anyhow::Result<()> {
+  // pushover needs all information to be encoded in the URL. At minimum they need
+  // the user key, the application token, and the message (url encoded).
+  // other optional params here: https://pushover.net/api (just add them to the
+  // webhook url along with the application token and the user key).
+  let content = [("message", content)];
+
   let response = http_client()
     .post(url)
-    .header("Title", "ntfy Alert")
-    .body(content)
+    .form(&content)
     .send()
     .await
     .context("Failed to send message")?;
 
   let status = response.status();
   if status.is_success() {
-    debug!("ntfy alert sent successfully: {}", status);
+    debug!("pushover alert sent successfully: {}", status);
     Ok(())
   } else {
     let text = response.text().await.with_context(|| {
       format!(
-        "Failed to send message to ntfy | {} | failed to get response text",
+        "Failed to send message to pushover | {} | failed to get response text",
         status
       )
     })?;
     Err(anyhow!(
-      "Failed to send message to ntfy | {} | {}",
+      "Failed to send message to pushover | {} | {}",
       status,
       text
     ))
