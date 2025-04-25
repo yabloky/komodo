@@ -248,7 +248,7 @@ impl Resolve<super::Args> for build::Build {
       } {
         let success = log.success;
         logs.push(log);
-        if success {
+        if !success {
           return Ok(logs);
         }
       };
