@@ -81,6 +81,9 @@ pub enum WriteRequest {
   UpdateServer(UpdateServer),
   RenameServer(RenameServer),
   CreateNetwork(CreateNetwork),
+  CreateTerminal(CreateTerminal),
+  DeleteTerminal(DeleteTerminal),
+  DeleteAllTerminals(DeleteAllTerminals),
 
   // ==== DEPLOYMENT ====
   CreateDeployment(CreateDeployment),
@@ -207,10 +210,6 @@ async fn handler(
   let res = tokio::spawn(task(req_id, request, user))
     .await
     .context("failure in spawned task");
-
-  if let Err(e) = &res {
-    warn!("/write request {req_id} spawn error: {e:#}");
-  }
 
   res?
 }

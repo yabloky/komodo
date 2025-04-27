@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.17.3"
+version = "1.17.4"
 edition = "2024"
 authors = ["mbecker20 <becker.maxh@gmail.com>"]
 license = "GPL-3.0-or-later"
@@ -44,19 +44,19 @@ mungos = "3.2.0"
 svi = "1.0.1"
 
 # ASYNC
-reqwest = { version = "0.12.15", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+reqwest = { version = "0.12.15", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
 tokio = { version = "1.44.1", features = ["full"] }
-tokio-util = "0.7.14"
+tokio-util = { version = "0.7.14", features = ["io", "codec"] }
 futures = "0.3.31"
 futures-util = "0.3.31"
 arc-swap = "1.7.1"
 
 # SERVER
+tokio-tungstenite = { version = "0.26.2", features = ["rustls-tls-native-roots"] }
 axum-extra = { version = "0.10.0", features = ["typed-header"] }
 tower-http = { version = "0.6.2", features = ["fs", "cors"] }
 axum-server = { version = "0.7.2", features = ["tls-rustls"] }
 axum = { version = "0.8.1", features = ["ws", "json", "macros"] }
-tokio-tungstenite = "0.26.2"
 
 # SER/DE
 ordered_hash_map = { version = "0.4.0", features = ["serde"] }
@@ -64,6 +64,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 strum = { version = "0.27.1", features = ["derive"] }
 serde_json = "1.0.140"
 serde_yaml = "0.9.34"
+serde_qs = "0.14.0"
 toml = "0.8.20"
 
 # ERROR
@@ -80,7 +81,7 @@ opentelemetry = "0.29.0"
 tracing = "0.1.41"
 
 # CONFIG
-clap = { version = "4.5.36", features = ["derive"] }
+clap = { version = "4.5.37", features = ["derive"] }
 dotenvy = "0.15.7"
 envy = "0.4.2"
 
@@ -95,10 +96,11 @@ base64 = "0.22.1"
 rustls = "0.23.26"
 hmac = "0.12.1"
 sha2 = "0.10.8"
-rand = "0.9.0"
+rand = "0.9.1"
 hex = "0.4.3"
 
 # SYSTEM
+portable-pty = "0.9.0"
 bollard = "0.18.1"
 sysinfo = "0.34.2"
 
@@ -121,4 +123,5 @@ dashmap = "6.1.0"
 wildcard = "0.3.0"
 colored = "3.0.0"
 regex = "1.11.1"
+bytes = "1.10.1"
 bson = "2.14.0"

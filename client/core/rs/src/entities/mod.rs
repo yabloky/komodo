@@ -1009,3 +1009,5 @@ pub enum ScheduleFormat {
   English,
   Cron,
 }
+
+pub const KOMODO_EXIT_DATA: &str = "__KOMODO_EXIT_DATA:";

@@ -38,6 +38,8 @@ pub struct ServerListItemInfo {
   pub send_mem_alerts: bool,
   /// Whether server is configured to send disk alerts.
   pub send_disk_alerts: bool,
+  /// Whether terminals are disabled for this Server.
+  pub terminals_disabled: bool,
 }
 
 #[typeshare(serialized_as = "Partial<ServerConfig>")]
@@ -274,6 +276,19 @@ pub struct ServerHealth {
   pub cpu: ServerHealthState,
   pub mem: ServerHealthState,
   pub disks: HashMap<PathBuf, ServerHealthState>,
+}
+
+/// Info about an active terminal on a server.
+/// Retrieve with [ListTerminals][crate::api::read::server::ListTerminals].
+#[typeshare]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct TerminalInfo {
+  /// The name of the terminal.
+  pub name: String,
+  /// The root program / args of the pty
+  pub command: String,
+  /// The size of the terminal history in memory.
+  pub stored_size_kb: f64,
 }
 
 /// Current pending actions on the server.

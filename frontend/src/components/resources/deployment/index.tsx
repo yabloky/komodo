@@ -31,6 +31,8 @@ import {
 import { RenameResource } from "@components/config/util";
 import { GroupActions } from "@components/group-actions";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ui/tooltip";
+import { DeploymentTerminal } from "./terminal";
+import { useEditPermissions } from "@pages/resource";
 
 // const configOrLog = atomWithStorage("config-or-log-v1", "Config");
 
@@ -43,57 +45,68 @@ export const useFullDeployment = (id: string) =>
   useRead("GetDeployment", { deployment: id }, { refetchInterval: 10_000 })
     .data;
 
-const ConfigOrLog = ({ id }: { id: string }) => {
+const ConfigTabs = ({ id }: { id: string }) => {
+  const deployment = useDeployment(id);
+  if (!deployment) return null;
+  return <ConfigTabsInner deployment={deployment} />;
+};
+
+const ConfigTabsInner = ({
+  deployment,
+}: {
+  deployment: Types.DeploymentListItem;
+}) => {
   // const [view, setView] = useAtom(configOrLog);
-  const [view, setView] = useLocalStorage("deployment-tabs-v1", "Config");
-  const state = useDeployment(id)?.info.state;
+  const [_view, setView] = useLocalStorage<"Config" | "Log" | "Terminal">(
+    "deployment-tabs-v1",
+    "Config"
+  );
+  const { canWrite: canWriteServer } = useEditPermissions({
+    type: "Server",
+    id: deployment.info.server_id,
+  });
+  const terminals_disabled =
+    useServer(deployment.info.server_id)?.info.terminals_disabled ?? true;
+  const state = deployment.info.state;
   const logsDisabled =
     state === undefined ||
     state === Types.DeploymentState.Unknown ||
     state === Types.DeploymentState.NotDeployed;
+  const terminalDisabled =
+    !canWriteServer ||
+    terminals_disabled ||
+    state !== Types.DeploymentState.Running;
+  const view =
+    (logsDisabled && _view === "Log") ||
+    (terminalDisabled && _view === "Terminal")
+      ? "Config"
+      : _view;
+
+  const tabs = (
+    <TabsList className="justify-start w-fit">
+      <TabsTrigger value="Config" className="w-[110px]">
+        Config
+      </TabsTrigger>
+      <TabsTrigger value="Log" className="w-[110px]" disabled={logsDisabled}>
+        Log
+      </TabsTrigger>
+      {!terminalDisabled && (
+        <TabsTrigger value="Terminal" className="w-[110px]">
+          Terminal
+        </TabsTrigger>
+      )}
+    </TabsList>
+  );
   return (
-    <Tabs
-      value={logsDisabled ? "Config" : view}
-      onValueChange={setView}
-      className="grid gap-4"
-    >
+    <Tabs value={view} onValueChange={setView as any} className="grid gap-4">
       <TabsContent value="Config">
-        <DeploymentConfig
-          id={id}
-          titleOther={
-            <TabsList className="justify-start w-fit">
-              <TabsTrigger value="Config" className="w-[110px]">
-                Config
-              </TabsTrigger>
-              <TabsTrigger
-                value="Log"
-                className="w-[110px]"
-                disabled={logsDisabled}
-              >
-                Log
-              </TabsTrigger>
-            </TabsList>
-          }
-        />
+        <DeploymentConfig id={deployment.id} titleOther={tabs} />
       </TabsContent>
       <TabsContent value="Log">
-        <DeploymentLogs
-          id={id}
-          titleOther={
-            <TabsList className="justify-start w-fit">
-              <TabsTrigger value="Config" className="w-[110px]">
-                Config
-              </TabsTrigger>
-              <TabsTrigger
-                value="Log"
-                className="w-[110px]"
-                disabled={logsDisabled}
-              >
-                Log
-              </TabsTrigger>
-            </TabsList>
-          }
-        />
+        <DeploymentLogs id={deployment.id} titleOther={tabs} />
+      </TabsContent>
+      <TabsContent value="Terminal">
+        <DeploymentTerminal deployment={deployment} titleOther={tabs} />
       </TabsContent>
     </Tabs>
   );
@@ -272,7 +285,7 @@ export const DeploymentComponents: RequiredResourceComponents = {
 
   Page: {},
 
-  Config: ConfigOrLog,
+  Config: ConfigTabs,
 
   DangerZone: ({ id }) => (
     <>

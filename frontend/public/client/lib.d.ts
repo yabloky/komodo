@@ -1,5 +1,5 @@
 import { AuthResponses, ExecuteResponses, ReadResponses, UserResponses, WriteResponses } from "./responses.js";
-import { AuthRequest, ExecuteRequest, ReadRequest, Update, UpdateListItem, UserRequest, WriteRequest } from "./types.js";
+import { AuthRequest, ConnectTerminalQuery, ExecuteRequest, ReadRequest, Update, UpdateListItem, UserRequest, WriteRequest } from "./types.js";
 export * as Types from "./types.js";
 type InitOptions = {
     type: "jwt";
@@ -132,4 +132,15 @@ export declare function KomodoClient(url: string, options: InitOptions): {
         cancel?: CancelToken;
         on_cancel?: () => void;
     }) => Promise<void>;
+    /**
+     * Subscribes to terminal io over websocket message,
+     * for use with xtermjs.
+     */
+    connect_terminal: ({ query, on_message, on_login, on_open, on_close, }: {
+        query: ConnectTerminalQuery;
+        on_message?: (e: MessageEvent<any>) => void;
+        on_login?: () => void;
+        on_open?: () => void;
+        on_close?: () => void;
+    }) => WebSocket;
 };

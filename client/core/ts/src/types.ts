@@ -1999,6 +1999,8 @@ export interface SystemInformation {
 	host_name?: string;
 	/** The CPU's brand */
 	cpu_brand: string;
+	/** Whether terminals are disabled on this Periphery */
+	terminals_disabled: boolean;
 }
 
 export type GetSystemInformationResponse = SystemInformation;
@@ -3546,6 +3548,8 @@ export interface ServerListItemInfo {
 	send_mem_alerts: boolean;
 	/** Whether server is configured to send disk alerts. */
 	send_disk_alerts: boolean;
+	/** Whether terminals are disabled for this Server. */
+	terminals_disabled: boolean;
 }
 
 export type ServerListItem = ResourceListItem<ServerListItemInfo>;
@@ -3669,6 +3673,21 @@ export interface SystemProcess {
 export type ListSystemProcessesResponse = SystemProcess[];
 
 export type ListTagsResponse = Tag[];
+
+/**
+ * Info about an active terminal on a server.
+ * Retrieve with [ListTerminals][crate::api::read::server::ListTerminals].
+ */
+export interface TerminalInfo {
+	/** The name of the terminal. */
+	name: string;
+	/** The root program / args of the pty */
+	command: string;
+	/** The size of the terminal history in memory. */
+	stored_size_kb: number;
+}
+
+export type ListTerminalsResponse = TerminalInfo[];
 
 export type ListUserGroupsResponse = UserGroup[];
 
@@ -4217,6 +4236,26 @@ export interface CommitSync {
 	sync: string;
 }
 
+/**
+ * Query to connect to a terminal (interactive shell over websocket) on the given server.
+ * TODO: Document calling.
+ */
+export interface ConnectTerminalQuery {
+	/** Server Id or name */
+	server: string;
+	/**
+	 * Each periphery can keep multiple terminals open.
+	 * If a terminals with the specified name already exists,
+	 * it will be attached to.
+	 * Otherwise a new terminal will be created for the command,
+	 * which will persist until it is deleted using
+	 * [DeleteTerminal][crate::api::write::server::DeleteTerminal]
+	 */
+	terminal: string;
+	/** Optional. The initial command to execute on connection to the shell. */
+	init?: string;
+}
+
 export interface Conversion {
 	/** reference on the server. */
 	local: string;
@@ -4607,6 +4646,44 @@ export interface CreateTag {
 	name: string;
 }
 
+/**
+ * Configures the behavior of [CreateTerminal] if the
+ * specified terminal name already exists.
+ */
+export enum TerminalRecreateMode {
+	/**
+	 * Never kill the old terminal if it already exists.
+	 * If the command is different, returns error.
+	 */
+	Never = "Never",
+	/** Always kill the old terminal and create new one */
+	Always = "Always",
+	/** Only kill and recreate if the command is different. */
+	DifferentCommand = "DifferentCommand",
+}
+
+/**
+ * Create a terminal on the server.
+ * Response: [NoData]
+ */
+export interface CreateTerminal {
+	/** Server Id or name */
+	server: string;
+	/** The name of the terminal on the server to create. */
+	name: string;
+	/**
+	 * The shell command (eg `bash`) to init the shell.
+	 * 
+	 * This can also include args:
+	 * `docker exec -it container sh`
+	 * 
+	 * Default: `bash`
+	 */
+	command: string;
+	/** Default: `Never` */
+	recreate?: TerminalRecreateMode;
+}
+
 /** **Admin only.** Create a user group. Response: [UserGroup] */
 export interface CreateUserGroup {
 	/** The name to assign to the new UserGroup */
@@ -4656,6 +4733,15 @@ export interface DeleteActionWebhook {
 export interface DeleteAlerter {
 	/** The id or name of the alerter to delete. */
 	id: string;
+}
+
+/**
+ * Delete all terminals on the server.
+ * Response: [NoData]
+ */
+export interface DeleteAllTerminals {
+	/** Server Id or name */
+	server: string;
 }
 
 /**
@@ -4849,6 +4935,17 @@ export interface DeleteSyncWebhook {
 export interface DeleteTag {
 	/** The id of the tag to delete. */
 	id: string;
+}
+
+/**
+ * Delete a terminal on the server.
+ * Response: [NoData]
+ */
+export interface DeleteTerminal {
+	/** Server Id or name */
+	server: string;
+	/** The name of the terminal on the server to delete. */
+	terminal: string;
 }
 
 /**
@@ -6438,6 +6535,20 @@ export interface ListTags {
 }
 
 /**
+ * List the current terminals on specified server.
+ * Response: [ListTerminalsResponse].
+ */
+export interface ListTerminals {
+	/** Id or name */
+	server: string;
+	/**
+	 * Force a fresh call to Periphery for the list.
+	 * Otherwise the response will be cached for 30s
+	 */
+	fresh?: boolean;
+}
+
+/**
  * Paginated endpoint for updates matching optional query.
  * More recent updates will be returned first.
  */
@@ -7870,6 +7981,7 @@ export type ReadRequest =
 	| { type: "ListDockerImages", params: ListDockerImages }
 	| { type: "ListDockerVolumes", params: ListDockerVolumes }
 	| { type: "ListComposeProjects", params: ListComposeProjects }
+	| { type: "ListTerminals", params: ListTerminals }
 	| { type: "GetDeploymentsSummary", params: GetDeploymentsSummary }
 	| { type: "GetDeployment", params: GetDeployment }
 	| { type: "GetDeploymentContainer", params: GetDeploymentContainer }
@@ -7968,6 +8080,9 @@ export type WriteRequest =
 	| { type: "UpdateServer", params: UpdateServer }
 	| { type: "RenameServer", params: RenameServer }
 	| { type: "CreateNetwork", params: CreateNetwork }
+	| { type: "CreateTerminal", params: CreateTerminal }
+	| { type: "DeleteTerminal", params: DeleteTerminal }
+	| { type: "DeleteAllTerminals", params: DeleteAllTerminals }
 	| { type: "CreateDeployment", params: CreateDeployment }
 	| { type: "CopyDeployment", params: CopyDeployment }
 	| { type: "CreateDeploymentFromContainer", params: CreateDeploymentFromContainer }

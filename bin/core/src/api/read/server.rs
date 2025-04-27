@@ -21,9 +21,11 @@ use komodo_client::{
       network::Network,
       volume::Volume,
     },
+    komodo_timestamp,
     permission::PermissionLevel,
     server::{
       Server, ServerActionState, ServerListItem, ServerState,
+      TerminalInfo,
     },
     stack::{Stack, StackServiceNames},
     stats::{SystemInformation, SystemProcess},
@@ -45,7 +47,10 @@ use resolver_api::Resolve;
 use tokio::sync::Mutex;
 
 use crate::{
-  helpers::{periphery_client, query::get_all_tags},
+  helpers::{
+    periphery_client,
+    query::{get_all_tags, get_system_info},
+  },
   resource,
   stack::compose_container_match_regex,
   state::{action_states, db_client, server_status_cache},
@@ -198,16 +203,6 @@ impl Resolve<ReadArgs> for GetServerActionState {
   }
 }
 
-// This protects the peripheries from spam requests
-const SYSTEM_INFO_EXPIRY: u128 = FIFTEEN_SECONDS_MS;
-type SystemInfoCache =
-  Mutex<HashMap<String, Arc<(SystemInformation, u128)>>>;
-fn system_info_cache() -> &'static SystemInfoCache {
-  static SYSTEM_INFO_CACHE: OnceLock<SystemInfoCache> =
-    OnceLock::new();
-  SYSTEM_INFO_CACHE.get_or_init(Default::default)
-}
-
 impl Resolve<ReadArgs> for GetSystemInformation {
   async fn resolve(
     self,
@@ -219,25 +214,7 @@ impl Resolve<ReadArgs> for GetSystemInformation {
       PermissionLevel::Read,
     )
     .await?;
-
-    let mut lock = system_info_cache().lock().await;
-    let res = match lock.get(&server.id) {
-      Some(cached) if cached.1 > unix_timestamp_ms() => {
-        cached.0.clone()
-      }
-      _ => {
-        let stats = periphery_client(&server)?
-          .request(periphery::stats::GetSystemInformation {})
-          .await?;
-        lock.insert(
-          server.id,
-          (stats.clone(), unix_timestamp_ms() + SYSTEM_INFO_EXPIRY)
-            .into(),
-        );
-        stats
-      }
-    };
-    Ok(res)
+    get_system_info(&server).await.map_err(Into::into)
   }
 }
 
@@ -809,6 +786,69 @@ impl Resolve<ReadArgs> for ListComposeProjects {
       Ok(projects.clone())
     } else {
       Ok(Vec::new())
+    }
+  }
+}
+
+#[derive(Default)]
+struct TerminalCacheItem {
+  list: Vec<TerminalInfo>,
+  ttl: i64,
+}
+
+const TERMINAL_CACHE_TIMEOUT: i64 = 30_000;
+
+#[derive(Default)]
+struct TerminalCache(
+  std::sync::Mutex<
+    HashMap<String, Arc<tokio::sync::Mutex<TerminalCacheItem>>>,
+  >,
+);
+
+impl TerminalCache {
+  fn get_or_insert(
+    &self,
+    server_id: String,
+  ) -> Arc<tokio::sync::Mutex<TerminalCacheItem>> {
+    if let Some(cached) =
+      self.0.lock().unwrap().get(&server_id).cloned()
+    {
+      return cached;
+    }
+    let to_cache =
+      Arc::new(tokio::sync::Mutex::new(TerminalCacheItem::default()));
+    self.0.lock().unwrap().insert(server_id, to_cache.clone());
+    to_cache
+  }
+}
+
+fn terminals_cache() -> &'static TerminalCache {
+  static TERMINALS: OnceLock<TerminalCache> = OnceLock::new();
+  TERMINALS.get_or_init(Default::default)
+}
+
+impl Resolve<ReadArgs> for ListTerminals {
+  async fn resolve(
+    self,
+    ReadArgs { user }: &ReadArgs,
+  ) -> serror::Result<ListTerminalsResponse> {
+    let server = resource::get_check_permissions::<Server>(
+      &self.server,
+      user,
+      PermissionLevel::Read,
+    )
+    .await?;
+    let cache = terminals_cache().get_or_insert(server.id.clone());
+    let mut cache = cache.lock().await;
+    if self.fresh || komodo_timestamp() > cache.ttl {
+      cache.list = periphery_client(&server)?
+        .request(periphery_client::api::terminal::ListTerminals {})
+        .await
+        .context("Failed to get fresh terminal list")?;
+      cache.ttl = komodo_timestamp() + TERMINAL_CACHE_TIMEOUT;
+      Ok(cache.list.clone())
+    } else {
+      Ok(cache.list.clone())
     }
   }
 }

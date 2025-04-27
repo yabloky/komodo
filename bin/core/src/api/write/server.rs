@@ -1,8 +1,9 @@
+use anyhow::Context;
 use formatting::format_serror;
 use komodo_client::{
   api::write::*,
   entities::{
-    Operation,
+    NoData, Operation,
     permission::PermissionLevel,
     server::Server,
     update::{Update, UpdateStatus},
@@ -99,5 +100,83 @@ impl Resolve<WriteArgs> for CreateNetwork {
     update_update(update.clone()).await?;
 
     Ok(update)
+  }
+}
+
+impl Resolve<WriteArgs> for CreateTerminal {
+  #[instrument(name = "CreateTerminal", skip(user))]
+  async fn resolve(
+    self,
+    WriteArgs { user }: &WriteArgs,
+  ) -> serror::Result<NoData> {
+    let server = resource::get_check_permissions::<Server>(
+      &self.server,
+      user,
+      PermissionLevel::Write,
+    )
+    .await?;
+
+    let periphery = periphery_client(&server)?;
+
+    periphery
+      .request(api::terminal::CreateTerminal {
+        name: self.name,
+        command: self.command,
+        recreate: self.recreate,
+      })
+      .await
+      .context("Failed to create terminal on periphery")?;
+
+    Ok(NoData {})
+  }
+}
+
+impl Resolve<WriteArgs> for DeleteTerminal {
+  #[instrument(name = "DeleteTerminal", skip(user))]
+  async fn resolve(
+    self,
+    WriteArgs { user }: &WriteArgs,
+  ) -> serror::Result<NoData> {
+    let server = resource::get_check_permissions::<Server>(
+      &self.server,
+      user,
+      PermissionLevel::Write,
+    )
+    .await?;
+
+    let periphery = periphery_client(&server)?;
+
+    periphery
+      .request(api::terminal::DeleteTerminal {
+        terminal: self.terminal,
+      })
+      .await
+      .context("Failed to delete terminal on periphery")?;
+
+    Ok(NoData {})
+  }
+}
+
+impl Resolve<WriteArgs> for DeleteAllTerminals {
+  #[instrument(name = "DeleteAllTerminals", skip(user))]
+  async fn resolve(
+    self,
+    WriteArgs { user }: &WriteArgs,
+  ) -> serror::Result<NoData> {
+    let server = resource::get_check_permissions::<Server>(
+      &self.server,
+      user,
+      PermissionLevel::Write,
+    )
+    .await?;
+
+    let periphery = periphery_client(&server)?;
+
+    periphery
+      .request(api::terminal::DeleteAllTerminals {})
+      .await
+      .context("Failed to delete all terminals on periphery")?;
+
+    Ok(NoData {})
   }
 }

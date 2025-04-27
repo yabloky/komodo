@@ -2106,6 +2106,8 @@ export interface SystemInformation {
     host_name?: string;
     /** The CPU's brand */
     cpu_brand: string;
+    /** Whether terminals are disabled on this Periphery */
+    terminals_disabled: boolean;
 }
 export type GetSystemInformationResponse = SystemInformation;
 /** Info for a single disk mounted on the system. */
@@ -3514,6 +3516,8 @@ export interface ServerListItemInfo {
     send_mem_alerts: boolean;
     /** Whether server is configured to send disk alerts. */
     send_disk_alerts: boolean;
+    /** Whether terminals are disabled for this Server. */
+    terminals_disabled: boolean;
 }
 export type ServerListItem = ResourceListItem<ServerListItemInfo>;
 export type ListServersResponse = ServerListItem[];
@@ -3625,6 +3629,19 @@ export interface SystemProcess {
 }
 export type ListSystemProcessesResponse = SystemProcess[];
 export type ListTagsResponse = Tag[];
+/**
+ * Info about an active terminal on a server.
+ * Retrieve with [ListTerminals][crate::api::read::server::ListTerminals].
+ */
+export interface TerminalInfo {
+    /** The name of the terminal. */
+    name: string;
+    /** The root program / args of the pty */
+    command: string;
+    /** The size of the terminal history in memory. */
+    stored_size_kb: number;
+}
+export type ListTerminalsResponse = TerminalInfo[];
 export type ListUserGroupsResponse = UserGroup[];
 export type ListUserTargetPermissionsResponse = Permission[];
 export type ListUsersResponse = User[];
@@ -4090,6 +4107,25 @@ export interface CommitSync {
     /** Id or name */
     sync: string;
 }
+/**
+ * Query to connect to a terminal (interactive shell over websocket) on the given server.
+ * TODO: Document calling.
+ */
+export interface ConnectTerminalQuery {
+    /** Server Id or name */
+    server: string;
+    /**
+     * Each periphery can keep multiple terminals open.
+     * If a terminals with the specified name already exists,
+     * it will be attached to.
+     * Otherwise a new terminal will be created for the command,
+     * which will persist until it is deleted using
+     * [DeleteTerminal][crate::api::write::server::DeleteTerminal]
+     */
+    terminal: string;
+    /** Optional. The initial command to execute on connection to the shell. */
+    init?: string;
+}
 export interface Conversion {
     /** reference on the server. */
     local: string;
@@ -4449,6 +4485,42 @@ export interface CreateTag {
     /** The name of the tag. */
     name: string;
 }
+/**
+ * Configures the behavior of [CreateTerminal] if the
+ * specified terminal name already exists.
+ */
+export declare enum TerminalRecreateMode {
+    /**
+     * Never kill the old terminal if it already exists.
+     * If the command is different, returns error.
+     */
+    Never = "Never",
+    /** Always kill the old terminal and create new one */
+    Always = "Always",
+    /** Only kill and recreate if the command is different. */
+    DifferentCommand = "DifferentCommand"
+}
+/**
+ * Create a terminal on the server.
+ * Response: [NoData]
+ */
+export interface CreateTerminal {
+    /** Server Id or name */
+    server: string;
+    /** The name of the terminal on the server to create. */
+    name: string;
+    /**
+     * The shell command (eg `bash`) to init the shell.
+     *
+     * This can also include args:
+     * `docker exec -it container sh`
+     *
+     * Default: `bash`
+     */
+    command: string;
+    /** Default: `Never` */
+    recreate?: TerminalRecreateMode;
+}
 /** **Admin only.** Create a user group. Response: [UserGroup] */
 export interface CreateUserGroup {
     /** The name to assign to the new UserGroup */
@@ -4493,6 +4565,14 @@ export interface DeleteActionWebhook {
 export interface DeleteAlerter {
     /** The id or name of the alerter to delete. */
     id: string;
+}
+/**
+ * Delete all terminals on the server.
+ * Response: [NoData]
+ */
+export interface DeleteAllTerminals {
+    /** Server Id or name */
+    server: string;
 }
 /**
  * Delete an api key for the calling user.
@@ -4666,6 +4746,16 @@ export interface DeleteSyncWebhook {
 export interface DeleteTag {
     /** The id of the tag to delete. */
     id: string;
+}
+/**
+ * Delete a terminal on the server.
+ * Response: [NoData]
+ */
+export interface DeleteTerminal {
+    /** Server Id or name */
+    server: string;
+    /** The name of the terminal on the server to delete. */
+    terminal: string;
 }
 /**
  * **Admin only**. Delete a user.
@@ -6091,6 +6181,19 @@ export interface ListSystemProcesses {
  */
 export interface ListTags {
     query?: MongoDocument;
+}
+/**
+ * List the current terminals on specified server.
+ * Response: [ListTerminalsResponse].
+ */
+export interface ListTerminals {
+    /** Id or name */
+    server: string;
+    /**
+     * Force a fresh call to Periphery for the list.
+     * Otherwise the response will be cached for 30s
+     */
+    fresh?: boolean;
 }
 /**
  * Paginated endpoint for updates matching optional query.
@@ -7647,6 +7750,9 @@ export type ReadRequest = {
     type: "ListComposeProjects";
     params: ListComposeProjects;
 } | {
+    type: "ListTerminals";
+    params: ListTerminals;
+} | {
     type: "GetDeploymentsSummary";
     params: GetDeploymentsSummary;
 } | {
@@ -7930,6 +8036,15 @@ export type WriteRequest = {
 } | {
     type: "CreateNetwork";
     params: CreateNetwork;
+} | {
+    type: "CreateTerminal";
+    params: CreateTerminal;
+} | {
+    type: "DeleteTerminal";
+    params: DeleteTerminal;
+} | {
+    type: "DeleteAllTerminals";
+    params: DeleteAllTerminals;
 } | {
     type: "CreateDeployment";
     params: CreateDeployment;

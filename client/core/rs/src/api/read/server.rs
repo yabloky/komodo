@@ -13,7 +13,7 @@ use crate::entities::{
   },
   server::{
     Server, ServerActionState, ServerListItem, ServerQuery,
-    ServerState,
+    ServerState, TerminalInfo,
   },
   stack::ComposeProject,
   stats::{
@@ -628,3 +628,27 @@ pub struct GetServersSummaryResponse {
   /// The number of disabled servers.
   pub disabled: I64,
 }
+
+//
+
+/// List the current terminals on specified server.
+/// Response: [ListTerminalsResponse].
+#[typeshare]
+#[derive(
+  Serialize, Deserialize, Debug, Clone, Default, Resolve, EmptyTraits,
+)]
+#[empty_traits(KomodoReadRequest)]
+#[response(ListTerminalsResponse)]
+#[error(serror::Error)]
+pub struct ListTerminals {
+  /// Id or name
+  #[serde(alias = "id", alias = "name")]
+  pub server: String,
+  /// Force a fresh call to Periphery for the list.
+  /// Otherwise the response will be cached for 30s
+  #[serde(default)]
+  pub fresh: bool,
+}
+
+#[typeshare]
+pub type ListTerminalsResponse = Vec<TerminalInfo>;

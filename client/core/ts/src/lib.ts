@@ -8,6 +8,7 @@ import {
 import {
   AuthRequest,
   BatchExecutionResponse,
+  ConnectTerminalQuery,
   ExecuteRequest,
   ReadRequest,
   Update,
@@ -42,7 +43,7 @@ export function KomodoClient(url: string, options: InitOptions) {
     secret: options.type === "api-key" ? options.params.secret : undefined,
   };
 
-  const request = async <Req, Res>(
+  const request = <Req, Res>(
     path: "/auth" | "/user" | "/read" | "/execute" | "/write",
     request: Req
   ): Promise<Res> =>
@@ -270,6 +271,62 @@ export function KomodoClient(url: string, options: InitOptions) {
     }
   };
 
+  const connect_terminal = ({
+    query,
+    on_message,
+    on_login,
+    on_open,
+    on_close,
+  }: {
+    query: ConnectTerminalQuery;
+    on_message?: (e: MessageEvent<any>) => void;
+    on_login?: () => void;
+    on_open?: () => void;
+    on_close?: () => void;
+  }) => {
+    const url_query = new URLSearchParams(
+      query as any as Record<string, string>
+    ).toString();
+    const ws = new WebSocket(
+      url.replace("http", "ws") + "/ws/terminal?" + url_query
+    );
+    // Handle login on websocket open
+    ws.onopen = () => {
+      const login_msg: WsLoginMessage =
+        options.type === "jwt"
+          ? {
+              type: "Jwt",
+              params: {
+                jwt: options.params.jwt,
+              },
+            }
+          : {
+              type: "ApiKeys",
+              params: {
+                key: options.params.key,
+                secret: options.params.secret,
+              },
+            };
+      ws.send(JSON.stringify(login_msg));
+      on_open?.();
+    };
+
+    ws.onmessage = (e) => {
+      if (e.data == "LOGGED_IN") {
+        ws.binaryType = "arraybuffer";
+        ws.onmessage = (e) => on_message?.(e);
+        on_login?.();
+        return;
+      } else {
+        on_message?.(e);
+      }
+    };
+
+    ws.onclose = () => on_close?.();
+
+    return ws;
+  };
+
   return {
     /**
      * Call the `/auth` api.
@@ -360,5 +417,10 @@ export function KomodoClient(url: string, options: InitOptions) {
      * Note. Awaiting this method will never finish.
      */
     subscribe_to_update_websocket,
+    /**
+     * Subscribes to terminal io over websocket message,
+     * for use with xtermjs.
+     */
+    connect_terminal,
   };
 }

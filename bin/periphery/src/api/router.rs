@@ -8,7 +8,7 @@ use axum::{
   http::{Request, StatusCode},
   middleware::{self, Next},
   response::Response,
-  routing::post,
+  routing::{get, post},
 };
 use derive_variants::ExtractVariant;
 use resolver_api::Resolve;
@@ -19,9 +19,13 @@ use crate::config::periphery_config;
 
 pub fn router() -> Router {
   Router::new()
-    .route("/", post(handler))
+    .merge(
+      Router::new()
+        .route("/", post(handler))
+        .layer(middleware::from_fn(guard_request_by_passkey)),
+    )
+    .route("/terminal", get(super::terminal::connect_terminal))
     .layer(middleware::from_fn(guard_request_by_ip))
-    .layer(middleware::from_fn(guard_request_by_passkey))
 }
 
 async fn handler(

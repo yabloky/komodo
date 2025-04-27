@@ -38,6 +38,9 @@ import { ServerInfo } from "./info";
 import { ServerStats } from "./stats";
 import { RenameResource } from "@components/config/util";
 import { GroupActions } from "@components/group-actions";
+import { ServerTerminals } from "./terminal";
+import { useEditPermissions } from "@pages/resource";
+import { Card, CardHeader, CardTitle } from "@ui/card";
 
 export const useServer = (id?: string) =>
   useRead("ListServers", {}, { refetchInterval: 10_000 }).data?.find(
@@ -59,12 +62,14 @@ const Icon = ({ id, size }: { id?: string; size: number }) => {
   );
 };
 
-const ConfigStatsDockerResources = ({ id }: { id: string }) => {
+const ConfigTabs = ({ id }: { id: string }) => {
   const [view, setView] = useLocalStorage<
-    "Config" | "Stats" | "Docker" | "Resources"
+    "Config" | "Stats" | "Docker" | "Resources" | "Terminals"
   >(`server-${id}-tab`, "Config");
 
   const is_admin = useUser().data?.admin ?? false;
+  const { canWrite } = useEditPermissions({ type: "Server", id });
+  const terminals_disabled = useServer(id)?.info.terminals_disabled ?? true;
   const disable_non_admin_create =
     useRead("GetCoreInfo", {}).data?.disable_non_admin_create ?? true;
 
@@ -109,6 +114,12 @@ const ConfigStatsDockerResources = ({ id }: { id: string }) => {
       >
         Resources
       </TabsTrigger>
+
+      {!terminals_disabled && canWrite && (
+        <TabsTrigger value="Terminals" className="w-[110px]">
+          Terminals
+        </TabsTrigger>
+      )}
     </TabsList>
   );
   return (
@@ -162,6 +173,32 @@ const ConfigStatsDockerResources = ({ id }: { id: string }) => {
             <RepoTable repos={repos} />
           </Section>
         </Section>
+      </TabsContent>
+
+      <TabsContent value="Terminals">
+        {!terminals_disabled && canWrite && (
+          <ServerTerminals id={id} titleOther={tabsList} />
+        )}
+        {terminals_disabled && canWrite && (
+          <Section titleOther={tabsList}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Terminals are disabled on this Server.</CardTitle>
+              </CardHeader>
+            </Card>
+          </Section>
+        )}
+        {!canWrite && (
+          <Section titleOther={tabsList}>
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  User does not have permission to use Terminals.
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </Section>
+        )}
       </TabsContent>
     </Tabs>
   );
@@ -451,7 +488,7 @@ export const ServerComponents: RequiredResourceComponents = {
 
   Page: {},
 
-  Config: ConfigStatsDockerResources,
+  Config: ConfigTabs,
 
   DangerZone: ({ id }) => (
     <>
