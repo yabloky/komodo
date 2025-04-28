@@ -68,11 +68,13 @@ stats_polling_rate = "5-sec"
 legacy_compose_cli = false
 
 ## Optional. Only include mounts at specific paths in the disk report.
+## Example: include_disk_mounts = ["/mnt/include/1", "/mnt/include/2"]
 ## Env: PERIPHERY_INCLUDE_DISK_MOUNTS
 ## Default: empty, which won't filter down the disks.
 include_disk_mounts = []
 
 ## Optional. Don't include these mounts in the disk report.
+## Example: exclude_disk_mounts = ["/mnt/exclude/1", "/mnt/exclude/2"]
 ## Env: PERIPHERY_EXCLUDE_DISK_MOUNTS
 ## Default: empty, which won't exclude any disks.
 exclude_disk_mounts = []
@@ -82,11 +84,13 @@ exclude_disk_mounts = []
 ########
 
 ## Optional. Limit the ip addresses which can call the periphery api.
+## Example: allowed_ips = ["::ffff:12.34.56.78"]
 ## Env: PERIPHERY_ALLOWED_IPS
 ## Default: empty, which will not block any request by ip.
 allowed_ips = []
 
 ## Optional. Require callers to provide on of the provided passkeys to access the periphery api.
+## Example: passkeys = ["your-passkey"]
 ## Env: PERIPHERY_PASSKEYS or PERIPHERY_PASSKEYS_FILE
 ## Default: empty, which will not require any passkey to be passed by core.
 passkeys = []
