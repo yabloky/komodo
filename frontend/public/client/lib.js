@@ -16,11 +16,11 @@ export function KomodoClient(url, options) {
         key: options.type === "api-key" ? options.params.key : undefined,
         secret: options.type === "api-key" ? options.params.secret : undefined,
     };
-    const request = (path, request) => new Promise(async (res, rej) => {
+    const request = (path, type, params) => new Promise(async (res, rej) => {
         try {
-            let response = await fetch(url + path, {
+            let response = await fetch(`${url}${path}/${type}`, {
                 method: "POST",
-                body: JSON.stringify(request),
+                body: JSON.stringify(params),
                 headers: {
                     ...(state.jwt
                         ? {
@@ -67,14 +67,11 @@ export function KomodoClient(url, options) {
             });
         }
     });
-    const auth = async (type, params) => await request("/auth", {
-        type,
-        params,
-    });
-    const user = async (type, params) => await request("/user", { type, params });
-    const read = async (type, params) => await request("/read", { type, params });
-    const write = async (type, params) => await request("/write", { type, params });
-    const execute = async (type, params) => await request("/execute", { type, params });
+    const auth = async (type, params) => await request("/auth", type, params);
+    const user = async (type, params) => await request("/user", type, params);
+    const read = async (type, params) => await request("/read", type, params);
+    const write = async (type, params) => await request("/write", type, params);
+    const execute = async (type, params) => await request("/execute", type, params);
     const execute_and_poll = async (type, params) => {
         const res = await execute(type, params);
         // Check if its a batch of updates or a single update;
@@ -103,40 +100,50 @@ export function KomodoClient(url, options) {
         }
     };
     const core_version = () => read("GetVersion", {}).then((res) => res.version);
-    const subscribe_to_update_websocket = async ({ on_update, on_login, on_close, retry_timeout_ms = 5_000, cancel = new CancelToken(), on_cancel, }) => {
+    const get_update_websocket = ({ on_update, on_login, on_open, on_close, }) => {
+        const ws = new WebSocket(url.replace("http", "ws") + "/ws/update");
+        // Handle login on websocket open
+        ws.addEventListener("open", () => {
+            on_open?.();
+            const login_msg = options.type === "jwt"
+                ? {
+                    type: "Jwt",
+                    params: {
+                        jwt: options.params.jwt,
+                    },
+                }
+                : {
+                    type: "ApiKeys",
+                    params: {
+                        key: options.params.key,
+                        secret: options.params.secret,
+                    },
+                };
+            ws.send(JSON.stringify(login_msg));
+        });
+        ws.addEventListener("message", ({ data }) => {
+            if (data == "LOGGED_IN")
+                return on_login?.();
+            on_update(JSON.parse(data));
+        });
+        if (on_close) {
+            ws.addEventListener("close", on_close);
+        }
+        return ws;
+    };
+    const subscribe_to_update_websocket = async ({ on_update, on_open, on_login, on_close, retry = true, retry_timeout_ms = 5_000, cancel = new CancelToken(), on_cancel, }) => {
         while (true) {
             if (cancel.cancelled) {
                 on_cancel?.();
                 return;
             }
             try {
-                const ws = new WebSocket(url.replace("http", "ws") + "/ws/update");
-                // Handle login on websocket open
-                ws.addEventListener("open", () => {
-                    const login_msg = options.type === "jwt"
-                        ? {
-                            type: "Jwt",
-                            params: {
-                                jwt: options.params.jwt,
-                            },
-                        }
-                        : {
-                            type: "ApiKeys",
-                            params: {
-                                key: options.params.key,
-                                secret: options.params.secret,
-                            },
-                        };
-                    ws.send(JSON.stringify(login_msg));
+                const ws = get_update_websocket({
+                    on_open,
+                    on_login,
+                    on_update,
+                    on_close,
                 });
-                ws.addEventListener("message", ({ data }) => {
-                    if (data == "LOGGED_IN")
-                        return on_login?.();
-                    on_update(JSON.parse(data));
-                });
-                if (on_close) {
-                    ws.addEventListener("close", on_close);
-                }
                 // This while loop will end when the socket is closed
                 while (ws.readyState !== WebSocket.CLOSING &&
                     ws.readyState !== WebSocket.CLOSED) {
@@ -145,13 +152,23 @@ export function KomodoClient(url, options) {
                     // Sleep for a bit before checking for websocket closed
                     await new Promise((resolve) => setTimeout(resolve, 500));
                 }
-                // Sleep for a bit before retrying connection to avoid spam.
-                await new Promise((resolve) => setTimeout(resolve, retry_timeout_ms));
+                if (retry) {
+                    // Sleep for a bit before retrying connection to avoid spam.
+                    await new Promise((resolve) => setTimeout(resolve, retry_timeout_ms));
+                }
+                else {
+                    return;
+                }
             }
             catch (error) {
                 console.error(error);
-                // Sleep for a bit before retrying, maybe Komodo Core is down temporarily.
-                await new Promise((resolve) => setTimeout(resolve, retry_timeout_ms));
+                if (retry) {
+                    // Sleep for a bit before retrying, maybe Komodo Core is down temporarily.
+                    await new Promise((resolve) => setTimeout(resolve, retry_timeout_ms));
+                }
+                else {
+                    return;
+                }
             }
         }
     };
@@ -190,6 +207,132 @@ export function KomodoClient(url, options) {
         };
         ws.onclose = () => on_close?.();
         return ws;
+    };
+    const connect_container_exec = ({ query, on_message, on_login, on_open, on_close, }) => {
+        const url_query = new URLSearchParams(query).toString();
+        const ws = new WebSocket(url.replace("http", "ws") + "/ws/container?" + url_query);
+        // Handle login on websocket open
+        ws.onopen = () => {
+            const login_msg = options.type === "jwt"
+                ? {
+                    type: "Jwt",
+                    params: {
+                        jwt: options.params.jwt,
+                    },
+                }
+                : {
+                    type: "ApiKeys",
+                    params: {
+                        key: options.params.key,
+                        secret: options.params.secret,
+                    },
+                };
+            ws.send(JSON.stringify(login_msg));
+            on_open?.();
+        };
+        ws.onmessage = (e) => {
+            if (e.data == "LOGGED_IN") {
+                ws.binaryType = "arraybuffer";
+                ws.onmessage = (e) => on_message?.(e);
+                on_login?.();
+                return;
+            }
+            else {
+                on_message?.(e);
+            }
+        };
+        ws.onclose = () => on_close?.();
+        return ws;
+    };
+    const execute_terminal_stream = (request) => new Promise(async (res, rej) => {
+        try {
+            let response = await fetch(url + "/terminal/execute", {
+                method: "POST",
+                body: JSON.stringify(request),
+                headers: {
+                    ...(state.jwt
+                        ? {
+                            authorization: state.jwt,
+                        }
+                        : state.key && state.secret
+                            ? {
+                                "x-api-key": state.key,
+                                "x-api-secret": state.secret,
+                            }
+                            : {}),
+                    "content-type": "application/json",
+                },
+            });
+            if (response.status === 200) {
+                if (response.body) {
+                    const stream = response.body
+                        .pipeThrough(new TextDecoderStream("utf-8"))
+                        .pipeThrough(new TransformStream({
+                        start(_controller) {
+                            this.tail = "";
+                        },
+                        transform(chunk, controller) {
+                            const data = this.tail + chunk; // prepend any carry‑over
+                            const parts = data.split(/\r?\n/); // split on CRLF or LF
+                            this.tail = parts.pop(); // last item may be incomplete
+                            for (const line of parts)
+                                controller.enqueue(line);
+                        },
+                        flush(controller) {
+                            if (this.tail)
+                                controller.enqueue(this.tail); // final unterminated line
+                        },
+                    }));
+                    res(stream);
+                }
+                else {
+                    rej({
+                        status: response.status,
+                        result: { error: "No response body", trace: [] },
+                    });
+                }
+            }
+            else {
+                try {
+                    const result = await response.json();
+                    rej({ status: response.status, result });
+                }
+                catch (error) {
+                    rej({
+                        status: response.status,
+                        result: {
+                            error: "Failed to get response body",
+                            trace: [JSON.stringify(error)],
+                        },
+                        error,
+                    });
+                }
+            }
+        }
+        catch (error) {
+            rej({
+                status: 1,
+                result: {
+                    error: "Request failed with error",
+                    trace: [JSON.stringify(error)],
+                },
+                error,
+            });
+        }
+    });
+    const execute_terminal = async (request, callbacks) => {
+        const stream = await execute_terminal_stream(request);
+        for await (const line of stream) {
+            if (line.startsWith("__KOMODO_EXIT_CODE")) {
+                await callbacks?.onFinish?.(line.split(":")[1]);
+                return;
+            }
+            else {
+                await callbacks?.onLine?.(line);
+            }
+        }
+        // This is hit if no __KOMODO_EXIT_CODE is sent, ie early exit
+        await callbacks?.onFinish?.("Early exit without code");
     };
     return {
         /**
@@ -276,6 +419,11 @@ export function KomodoClient(url, options) {
         /** Returns the version of Komodo Core the client is calling to. */
         core_version,
         /**
+         * Connects to update websocket, performs login and attaches handlers,
+         * and returns the WebSocket handle.
+         */
+        get_update_websocket,
+        /**
          * Subscribes to the update websocket with automatic reconnect loop.
          *
          * Note. Awaiting this method will never finish.
@@ -286,5 +434,53 @@ export function KomodoClient(url, options) {
          * for use with xtermjs.
          */
         connect_terminal,
+        /**
+         * Subscribes to container exec io over websocket message,
+         * for use with xtermjs.
+         */
+        connect_container_exec,
+        /**
+         * Executes a command on a given Server / terminal,
+         * and returns a stream to process the output as it comes in.
+         *
+         * Note. The final line of the stream will usually be
+         * `__KOMODO_EXIT_CODE__:0`. The number
+         * is the exit code of the command.
+         *
+         * If this line is NOT present, it means the stream
+         * was terminated early, ie like running `exit`.
+         *
+         * ```ts
+         * const stream = await komodo.execute_terminal_stream({
+         *   server: "my-server",
+         *   terminal: "name",
+         *   command: 'for i in {1..3}; do echo "$i"; sleep 1; done',
+         * });
+         *
+         * for await (const line of stream) {
+         *   console.log(line);
+         * }
+         * ```
+         */
+        execute_terminal_stream,
+        /**
+         * Executes a command on a given Server / terminal,
+         * and gives a callback to handle the output as it comes in.
+         *
+         * ```ts
+         * const stream = await komodo.execute_terminal(
+         *   {
+         *     server: "my-server",
+         *     terminal: "name",
+         *     command: 'for i in {1..3}; do echo "$i"; sleep 1; done',
+         *   },
+         *   {
+         *     onLine: (line) => console.log(line),
+         *     onFinish: (code) => console.log("Finished:", code),
+         *   }
+         * );
+         * ```
+         */
+        execute_terminal,
     };
 }

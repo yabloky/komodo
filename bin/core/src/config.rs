@@ -8,7 +8,7 @@ use komodo_client::entities::{
   config::core::{
     AwsCredentials, CoreConfig, DatabaseConfig, Env,
     GithubWebhookAppConfig, GithubWebhookAppInstallationConfig,
-    HetznerCredentials, OauthCredentials,
+    OauthCredentials,
   },
   logger::LogConfig,
 };
@@ -120,11 +120,6 @@ pub fn core_config() -> &'static CoreConfig {
           .komodo_aws_secret_access_key)
           .unwrap_or(config.aws.secret_access_key),
       },
-      hetzner: HetznerCredentials {
-        token: maybe_read_item_from_file(env.komodo_hetzner_token_file, env
-          .komodo_hetzner_token)
-          .unwrap_or(config.hetzner.token),
-      },
       github_webhook_app: GithubWebhookAppConfig {
         app_id: maybe_read_item_from_file(env.komodo_github_webhook_app_app_id_file, env
           .komodo_github_webhook_app_app_id)
@@ -177,6 +172,8 @@ pub fn core_config() -> &'static CoreConfig {
         .unwrap_or(config.ui_write_disabled),
       disable_confirm_dialog: env.komodo_disable_confirm_dialog
         .unwrap_or(config.disable_confirm_dialog),
+      disable_websocket_reconnect: env.komodo_disable_websocket_reconnect
+        .unwrap_or(config.disable_websocket_reconnect),
       enable_new_users: env.komodo_enable_new_users
         .unwrap_or(config.enable_new_users),
       disable_user_registration: env.komodo_disable_user_registration

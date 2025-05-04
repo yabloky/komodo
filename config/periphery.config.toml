@@ -53,6 +53,12 @@ root_directory = "/etc/komodo"
 ## Default: false
 disable_terminals = false
 
+## Disable the container exec APIs and disallow remote container shell access through Periphery.
+## This can be left enabled while general terminal access is disabled.
+## Env: PERIPHERY_DISABLE_CONTAINER_EXEC
+## Default: false
+disable_container_exec = false
+
 ## How often Periphery polls the host for system stats,
 ## like CPU / memory usage. To effectively disable polling,
 ## set this to something like 1-hr.
@@ -103,7 +109,7 @@ passkeys = []
 ## If true and a key / cert at the given paths are not found, 
 ## self signed keys will be generated using openssl.
 ## Env: PERIPHERY_SSL_ENABLED
-## Default: false (will change to `true` in later release)
+## Default: true
 ssl_enabled = true
 
 ## Path to the ssl key.

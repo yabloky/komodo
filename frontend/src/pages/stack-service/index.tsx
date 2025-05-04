@@ -93,6 +93,8 @@ const StackServicePageInner = ({
           <div className="flex flex-col gap-2 border rounded-md">
             {/* <Components.ResourcePageHeader id={id} /> */}
             <ResourcePageHeader
+              type={undefined}
+              id={undefined}
               intent={intention}
               icon={<Layers2 className={cn("w-8 h-8", stroke_color)} />}
               name={service}
@@ -219,11 +221,11 @@ const LogOrTerminal = ({
     type: "Server",
     id: stack.info.server_id,
   });
-  const terminals_disabled =
-    useServer(stack.info.server_id)?.info.terminals_disabled ?? true;
+  const container_exec_disabled =
+    useServer(stack.info.server_id)?.info.container_exec_disabled ?? true;
   const terminalDisabled =
     !canWriteServer ||
-    terminals_disabled ||
+    container_exec_disabled ||
     container_state !== Types.ContainerStateStatusEnum.Running;
   const view = terminalDisabled && _view === "Terminal" ? "Log" : _view;
   const tabs = (
@@ -247,7 +249,7 @@ const LogOrTerminal = ({
         {stack.info.server_id && container_name && (
           <ContainerTerminal
             server={stack.info.server_id}
-            container_name={container_name}
+            container={container_name}
             titleOther={tabs}
           />
         )}

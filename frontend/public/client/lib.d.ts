@@ -1,5 +1,5 @@
 import { AuthResponses, ExecuteResponses, ReadResponses, UserResponses, WriteResponses } from "./responses.js";
-import { AuthRequest, ConnectTerminalQuery, ExecuteRequest, ReadRequest, Update, UpdateListItem, UserRequest, WriteRequest } from "./types.js";
+import { AuthRequest, ConnectContainerExecQuery, ConnectTerminalQuery, ExecuteRequest, ExecuteTerminalBody, ReadRequest, Update, UpdateListItem, UserRequest, WriteRequest } from "./types.js";
 export * as Types from "./types.js";
 type InitOptions = {
     type: "jwt";
@@ -119,15 +119,26 @@ export declare function KomodoClient(url: string, options: InitOptions): {
     /** Returns the version of Komodo Core the client is calling to. */
     core_version: () => Promise<string>;
     /**
-     * Subscribes to the update websocket with automatic reconnect loop.
-     *
-     * Note. Awaiting this method will never finish.
+     * Connects to update websocket, performs login and attaches handlers,
+     * and returns the WebSocket handle.
      */
-    subscribe_to_update_websocket: ({ on_update, on_login, on_close, retry_timeout_ms, cancel, on_cancel, }: {
+    get_update_websocket: ({ on_update, on_login, on_open, on_close, }: {
         on_update: (update: UpdateListItem) => void;
         on_login?: () => void;
         on_open?: () => void;
         on_close?: () => void;
+    }) => WebSocket;
+    /**
+     * Subscribes to the update websocket with automatic reconnect loop.
+     *
+     * Note. Awaiting this method will never finish.
+     */
+    subscribe_to_update_websocket: ({ on_update, on_open, on_login, on_close, retry, retry_timeout_ms, cancel, on_cancel, }: {
+        on_update: (update: UpdateListItem) => void;
+        on_login?: () => void;
+        on_open?: () => void;
+        on_close?: () => void;
+        retry?: boolean;
         retry_timeout_ms?: number;
         cancel?: CancelToken;
         on_cancel?: () => void;
@@ -143,4 +154,61 @@ export declare function KomodoClient(url: string, options: InitOptions): {
         on_open?: () => void;
         on_close?: () => void;
     }) => WebSocket;
+    /**
+     * Subscribes to container exec io over websocket message,
+     * for use with xtermjs.
+     */
+    connect_container_exec: ({ query, on_message, on_login, on_open, on_close, }: {
+        query: ConnectContainerExecQuery;
+        on_message?: (e: MessageEvent<any>) => void;
+        on_login?: () => void;
+        on_open?: () => void;
+        on_close?: () => void;
+    }) => WebSocket;
+    /**
+     * Executes a command on a given Server / terminal,
+     * and returns a stream to process the output as it comes in.
+     *
+     * Note. The final line of the stream will usually be
+     * `__KOMODO_EXIT_CODE__:0`. The number
+     * is the exit code of the command.
+     *
+     * If this line is NOT present, it means the stream
+     * was terminated early, ie like running `exit`.
+     *
+     * ```ts
+     * const stream = await komodo.execute_terminal_stream({
+     *   server: "my-server",
+     *   terminal: "name",
+     *   command: 'for i in {1..3}; do echo "$i"; sleep 1; done',
+     * });
+     *
+     * for await (const line of stream) {
+     *   console.log(line);
+     * }
+     * ```
+     */
+    execute_terminal_stream: (request: ExecuteTerminalBody) => Promise<AsyncIterable<string>>;
+    /**
+     * Executes a command on a given Server / terminal,
+     * and gives a callback to handle the output as it comes in.
+     *
+     * ```ts
+     * const stream = await komodo.execute_terminal(
+     *   {
+     *     server: "my-server",
+     *     terminal: "name",
+     *     command: 'for i in {1..3}; do echo "$i"; sleep 1; done',
+     *   },
+     *   {
+     *     onLine: (line) => console.log(line),
+     *     onFinish: (code) => console.log("Finished:", code),
+     *   }
+     * );
+     * ```
+     */
+    execute_terminal: (request: ExecuteTerminalBody, callbacks?: {
+        onLine?: (line: string) => void | Promise<void>;
+        onFinish?: (code: string) => void | Promise<void>;
+    }) => Promise<void>;
 };

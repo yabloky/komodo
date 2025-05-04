@@ -13,7 +13,6 @@ use komodo_client::{
     procedure::Procedure,
     repo::Repo,
     server::Server,
-    server_template::ServerTemplate,
     stack::Stack,
     sync::ResourceSync,
     tag::Tag,
@@ -190,18 +189,6 @@ impl ResourceSyncTrait for Builder {
 }
 
 impl ExecuteResourceSync for Builder {}
-
-impl ResourceSyncTrait for ServerTemplate {
-  fn get_diff(
-    original: Self::Config,
-    update: Self::PartialConfig,
-    _resources: &AllResourcesById,
-  ) -> anyhow::Result<Self::ConfigDiff> {
-    Ok(original.partial_diff(update))
-  }
-}
-
-impl ExecuteResourceSync for ServerTemplate {}
 
 impl ResourceSyncTrait for Action {
   fn get_diff(
@@ -614,6 +601,7 @@ impl ResourceSyncTrait for Procedure {
               .map(|s| s.name.clone())
               .unwrap_or_default();
           }
+          Execution::BatchPullStack(_config) => {}
           Execution::StartStack(config) => {
             config.stack = resources
               .stacks

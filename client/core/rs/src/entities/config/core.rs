@@ -106,6 +106,8 @@ pub struct Env {
   pub komodo_disable_confirm_dialog: Option<bool>,
   /// Override `disable_non_admin_create`
   pub komodo_disable_non_admin_create: Option<bool>,
+  /// Override `disable_websocket_reconnect`
+  pub komodo_disable_websocket_reconnect: Option<bool>,
 
   /// Override `local_auth`
   pub komodo_local_auth: Option<bool>,
@@ -209,11 +211,6 @@ pub struct Env {
   /// Override `aws.secret_access_key` with file
   pub komodo_aws_secret_access_key_file: Option<PathBuf>,
 
-  /// Override `hetzner.token`
-  pub komodo_hetzner_token: Option<String>,
-  /// Override `hetzner.token` with file
-  pub komodo_hetzner_token_file: Option<PathBuf>,
-
   /// Override `ssl_enabled`.
   pub komodo_ssl_enabled: Option<bool>,
   /// Override `ssl_key_file`
@@ -276,6 +273,10 @@ pub struct CoreConfig {
   /// Disable the popup confirm dialogs. All buttons will just be double click.
   #[serde(default)]
   pub disable_confirm_dialog: bool,
+
+  /// Disable the UI websocket from automatically reconnecting.
+  #[serde(default)]
+  pub disable_websocket_reconnect: bool,
 
   /// If defined, ensure an enabled first server exists at this address.
   /// Example: `http://periphery:8120`
@@ -456,10 +457,6 @@ pub struct CoreConfig {
   #[serde(default)]
   pub aws: AwsCredentials,
 
-  /// Configure Hetzner credentials to use with Hetzner builds / server launches.
-  #[serde(default)]
-  pub hetzner: HetznerCredentials,
-
   // =================
   // = Git Providers =
   // =================
@@ -601,6 +598,7 @@ impl CoreConfig {
       transparent_mode: config.transparent_mode,
       ui_write_disabled: config.ui_write_disabled,
       disable_confirm_dialog: config.disable_confirm_dialog,
+      disable_websocket_reconnect: config.disable_websocket_reconnect,
       enable_new_users: config.enable_new_users,
       disable_user_registration: config.disable_user_registration,
       disable_non_admin_create: config.disable_non_admin_create,
@@ -645,9 +643,6 @@ impl CoreConfig {
         secret_access_key: empty_or_redacted(
           &config.aws.secret_access_key,
         ),
-      },
-      hetzner: HetznerCredentials {
-        token: empty_or_redacted(&config.hetzner.token),
       },
       secrets: config
         .secrets
@@ -758,12 +753,6 @@ pub struct AwsCredentials {
   pub access_key_id: String,
   /// The aws SECRET_ACCESS_KEY
   pub secret_access_key: String,
-}
-
-/// Provide Hetzner credentials for Komodo to use.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct HetznerCredentials {
-  pub token: String,
 }
 
 /// Provide configuration for a Github Webhook app.

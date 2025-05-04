@@ -9,7 +9,6 @@ use komodo_client::entities::{
   procedure::Procedure,
   repo::Repo,
   server::Server,
-  server_template::ServerTemplate,
   stack::Stack,
   sync::ResourceSync,
   update::{Update, UpdateListItem},
@@ -385,16 +384,6 @@ pub async fn init_execution_update(
       return Ok(Default::default());
     }
 
-    // Server template
-    ExecuteRequest::LaunchServer(data) => (
-      Operation::LaunchServer,
-      ResourceTarget::ServerTemplate(
-        resource::get::<ServerTemplate>(&data.server_template)
-          .await?
-          .id,
-      ),
-    ),
-
     // Resource Sync
     ExecuteRequest::RunSync(data) => (
       Operation::RunSync,
@@ -446,6 +435,9 @@ pub async fn init_execution_update(
         resource::get::<Stack>(&data.stack).await?.id,
       ),
     ),
+    ExecuteRequest::BatchPullStack(_data) => {
+      return Ok(Default::default());
+    }
     ExecuteRequest::RestartStack(data) => (
       if !data.services.is_empty() {
         Operation::RestartStackService

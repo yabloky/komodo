@@ -38,10 +38,6 @@ export type ReadResponses = {
     GetActionActionState: Types.GetActionActionStateResponse;
     ListActions: Types.ListActionsResponse;
     ListFullActions: Types.ListFullActionsResponse;
-    GetServerTemplate: Types.GetServerTemplateResponse;
-    GetServerTemplatesSummary: Types.GetServerTemplatesSummaryResponse;
-    ListServerTemplates: Types.ListServerTemplatesResponse;
-    ListFullServerTemplates: Types.ListFullServerTemplatesResponse;
     GetServersSummary: Types.GetServersSummaryResponse;
     GetServer: Types.GetServerResponse;
     GetServerState: Types.GetServerStateResponse;
@@ -153,7 +149,6 @@ export type WriteResponses = {
     UpdatePermissionOnResourceType: Types.UpdatePermissionOnResourceTypeResponse;
     UpdatePermissionOnTarget: Types.UpdatePermissionOnTargetResponse;
     UpdateDescription: Types.UpdateDescriptionResponse;
-    LaunchServer: Types.Update;
     CreateServer: Types.Server;
     DeleteServer: Types.Server;
     UpdateServer: Types.Server;
@@ -182,11 +177,6 @@ export type WriteResponses = {
     DeleteBuilder: Types.Builder;
     UpdateBuilder: Types.Builder;
     RenameBuilder: Types.Update;
-    CreateServerTemplate: Types.ServerTemplate;
-    CopyServerTemplate: Types.ServerTemplate;
-    DeleteServerTemplate: Types.ServerTemplate;
-    UpdateServerTemplate: Types.ServerTemplate;
-    RenameServerTemplate: Types.Update;
     CreateRepo: Types.Repo;
     CopyRepo: Types.Repo;
     DeleteRepo: Types.Repo;
@@ -292,13 +282,13 @@ export type ExecuteResponses = {
     BatchRunProcedure: Types.BatchExecutionResponse;
     RunAction: Types.Update;
     BatchRunAction: Types.BatchExecutionResponse;
-    LaunchServer: Types.Update;
     RunSync: Types.Update;
     DeployStack: Types.Update;
     BatchDeployStack: Types.BatchExecutionResponse;
     DeployStackIfChanged: Types.Update;
     BatchDeployStackIfChanged: Types.BatchExecutionResponse;
     PullStack: Types.Update;
+    BatchPullStack: Types.BatchExecutionResponse;
     StartStack: Types.Update;
     RestartStack: Types.Update;
     StopStack: Types.Update;

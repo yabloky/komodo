@@ -70,11 +70,37 @@ pub struct ConnectTerminalQuery {
   pub token: String,
   /// Each periphery can keep multiple terminals open.
   /// If a terminal with the specified name already exists,
-  /// it will be attached to.
-  /// Otherwise a new terminal will be created,
-  /// which will persist until it is either exited via command (ie `exit`),
-  /// or deleted using [DeleteTerminal]
+  /// it will be attached to. Otherwise, it will fail.
   pub terminal: String,
-  /// Optional. The initial command to execute on connection to the shell.
-  pub init: Option<String>,
+}
+
+//
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ExecuteTerminalBody {
+  /// Specify the terminal to execute the command on.
+  pub terminal: String,
+  /// The command to execute.
+  pub command: String,
+}
+
+//
+
+//
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConnectContainerExecQuery {
+  /// Use [CreateTerminalAuthToken] to create a single-use
+  /// token to send in the query.
+  pub token: String,
+  /// The name of the container to connect to.
+  pub container: String,
+  /// The shell to start inside container.
+  /// Default: `sh`
+  #[serde(default = "default_container_shell")]
+  pub shell: String,
+}
+
+fn default_container_shell() -> String {
+  String::from("sh")
 }

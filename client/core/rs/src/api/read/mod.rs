@@ -14,7 +14,6 @@ mod procedure;
 mod provider;
 mod repo;
 mod server;
-mod server_template;
 mod stack;
 mod sync;
 mod tag;
@@ -35,7 +34,6 @@ pub use procedure::*;
 pub use provider::*;
 pub use repo::*;
 pub use server::*;
-pub use server_template::*;
 pub use stack::*;
 pub use sync::*;
 pub use tag::*;
@@ -106,6 +104,8 @@ pub struct GetCoreInfoResponse {
   pub disable_confirm_dialog: bool,
   /// The repo owners for which github webhook management api is available
   pub github_webhook_owners: Vec<String>,
+  /// Whether to disable websocket automatic reconnect.
+  pub disable_websocket_reconnect: bool,
 }
 
 //

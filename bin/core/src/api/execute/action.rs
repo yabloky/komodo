@@ -134,12 +134,18 @@ impl Resolve<ExecuteArgs> for RunAction {
       ""
     };
 
+    let reload = if action.config.reload_deno_deps {
+      " --reload"
+    } else {
+      ""
+    };
+
     let mut res = run_komodo_command(
       // Keep this stage name as is, the UI will find the latest update log by matching the stage name
       "Execute Action",
       None,
       format!(
-        "deno run --allow-all{https_cert_flag} {}",
+        "deno run --allow-all{https_cert_flag}{reload} {}",
         path.display()
       ),
     )
@@ -245,7 +251,7 @@ fn full_contents(contents: &str, key: &str, secret: &str) -> String {
   let protocol = if *ssl_enabled { "https" } else { "http" };
   let base_url = format!("{protocol}://localhost:{port}");
   format!(
-    "import {{ KomodoClient }} from '{base_url}/client/lib.js';
+    "import {{ KomodoClient, Types }} from '{base_url}/client/lib.js';
 import * as __YAML__ from 'jsr:@std/yaml';
 import * as __TOML__ from 'jsr:@std/toml';
 
@@ -281,7 +287,7 @@ main()
     console.error('Status:', error.status);
     console.error(JSON.stringify(error.result, null, 2));
   }} else {{
-    console.error(JSON.stringify(error, null, 2));
+    console.error(error);
   }}
   Deno.exit(1)
 }});"
