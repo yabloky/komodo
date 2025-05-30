@@ -45,9 +45,14 @@ path = "frontend"
 cmd = "yarn build"
 after = "gen-client"
 
-[publish-typescript]
+[publish-ts-client]
 path = "client/core/ts"
 cmd = "npm publish"
+
+[publish-docsite]
+description = "publishes the documentation site (https://komo.do) to github pages"
+path = "docsite"
+cmd = "yarn && yarn deploy"
 
 [dev-compose]
 description = "deploys dev.compose.yaml"
@@ -65,11 +70,6 @@ docker compose -p komodo-dev -f dev.compose.yaml -f expose.compose.yaml up -d"""
 description = "builds and deploys dev.compose.yaml"
 cmd = """
 docker compose -p komodo-dev -f dev.compose.yaml build"""
-
-[deploy-docsite]
-description = "deploys the documentation site (https://komo.do) to github pages"
-path = "docsite"
-cmd = "yarn && yarn deploy"
 
 [dev-rustdoc]
 description = "starts the rustdoc site (https://docs.rs/komodo_client/latest/komodo_client/) in dev mode"
