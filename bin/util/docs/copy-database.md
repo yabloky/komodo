@@ -52,7 +52,7 @@ services:
     environment:
       POSTGRES_USER: ${KOMODO_DB_USERNAME}
       POSTGRES_PASSWORD: ${KOMODO_DB_PASSWORD}
-      POSTGRES_DB: postgres
+      POSTGRES_DB: postgres # Do not change
 
   ferretdb2:
     # Recommended: Pin to a specific version
