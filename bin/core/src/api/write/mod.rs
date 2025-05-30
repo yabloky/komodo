@@ -69,6 +69,7 @@ pub enum WriteRequest {
   AddUserToUserGroup(AddUserToUserGroup),
   RemoveUserFromUserGroup(RemoveUserFromUserGroup),
   SetUsersInUserGroup(SetUsersInUserGroup),
+  SetEveryoneUserGroup(SetEveryoneUserGroup),
 
   // ==== PERMISSIONS ====
   UpdateUserAdmin(UpdateUserAdmin),
@@ -88,6 +89,17 @@ pub enum WriteRequest {
   CreateTerminal(CreateTerminal),
   DeleteTerminal(DeleteTerminal),
   DeleteAllTerminals(DeleteAllTerminals),
+
+  // ==== STACK ====
+  CreateStack(CreateStack),
+  CopyStack(CopyStack),
+  DeleteStack(DeleteStack),
+  UpdateStack(UpdateStack),
+  RenameStack(RenameStack),
+  WriteStackFileContents(WriteStackFileContents),
+  RefreshStackCache(RefreshStackCache),
+  CreateStackWebhook(CreateStackWebhook),
+  DeleteStackWebhook(DeleteStackWebhook),
 
   // ==== DEPLOYMENT ====
   CreateDeployment(CreateDeployment),
@@ -157,17 +169,6 @@ pub enum WriteRequest {
   RefreshResourceSyncPending(RefreshResourceSyncPending),
   CreateSyncWebhook(CreateSyncWebhook),
   DeleteSyncWebhook(DeleteSyncWebhook),
-
-  // ==== STACK ====
-  CreateStack(CreateStack),
-  CopyStack(CopyStack),
-  DeleteStack(DeleteStack),
-  UpdateStack(UpdateStack),
-  RenameStack(RenameStack),
-  WriteStackFileContents(WriteStackFileContents),
-  RefreshStackCache(RefreshStackCache),
-  CreateStackWebhook(CreateStackWebhook),
-  DeleteStackWebhook(DeleteStackWebhook),
 
   // ==== TAG ====
   CreateTag(CreateTag),

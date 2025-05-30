@@ -14,12 +14,17 @@ export type I64 = number;
 export enum PermissionLevel {
 	/** No permissions. */
 	None = "None",
-	/** Can see the rousource */
+	/** Can read resource information and config */
 	Read = "Read",
 	/** Can execute actions on the resource */
 	Execute = "Execute",
 	/** Can update the resource configuration */
 	Write = "Write",
+}
+
+export interface PermissionLevelAndSpecifics {
+	level: PermissionLevel;
+	specific: Array<SpecificPermission>;
 }
 
 export interface Resource<Config, Info> {
@@ -48,7 +53,7 @@ export interface Resource<Config, Info> {
 	 * Set a base permission level that all users will have on the
 	 * resource.
 	 */
-	base_permission?: PermissionLevel;
+	base_permission?: PermissionLevelAndSpecifics | PermissionLevel;
 }
 
 export enum ScheduleFormat {
@@ -798,7 +803,7 @@ export interface User {
 	/** Recently viewed ids */
 	recents?: Record<ResourceTarget["type"], string[]>;
 	/** Give the user elevated permissions on all resources of a certain type */
-	all?: Record<ResourceTarget["type"], PermissionLevel>;
+	all?: Record<ResourceTarget["type"], PermissionLevelAndSpecifics | PermissionLevel>;
 	updated_at?: I64;
 }
 
@@ -1353,7 +1358,7 @@ export type GetDockerRegistryAccountResponse = DockerRegistryAccount;
 
 export type GetGitProviderAccountResponse = GitProviderAccount;
 
-export type GetPermissionLevelResponse = PermissionLevel;
+export type GetPermissionResponse = PermissionLevelAndSpecifics;
 
 export interface ProcedureActionState {
 	running: boolean;
@@ -2332,10 +2337,12 @@ export interface UserGroup {
 	_id?: MongoId;
 	/** A name for the user group */
 	name: string;
+	/** Whether all users will implicitly have the permissions in this group. */
+	everyone?: boolean;
 	/** User ids of group members */
 	users?: string[];
 	/** Give the user group elevated permissions on all resources of a certain type */
-	all?: Record<ResourceTarget["type"], PermissionLevel>;
+	all?: Record<ResourceTarget["type"], PermissionLevelAndSpecifics | PermissionLevel>;
 	/** Unix time (ms) when user group last updated */
 	updated_at?: I64;
 }
@@ -2352,8 +2359,8 @@ export enum ContainerStateStatusEnum {
 	Running = "running",
 	Paused = "paused",
 	Restarting = "restarting",
-	Removing = "removing",
 	Exited = "exited",
+	Removing = "removing",
 	Dead = "dead",
 }
 
@@ -2487,6 +2494,7 @@ export enum MountTypeEnum {
 	Empty = "",
 	Bind = "bind",
 	Volume = "volume",
+	Image = "image",
 	Tmpfs = "tmpfs",
 	Npipe = "npipe",
 	Cluster = "cluster",
@@ -2895,6 +2903,8 @@ export interface Container {
 	NetworkSettings?: NetworkSettings;
 }
 
+export type InspectDeploymentContainerResponse = Container;
+
 export type InspectDockerContainerResponse = Container;
 
 /** Information about the image's RootFS, including the layer IDs. */
@@ -3145,6 +3155,8 @@ export interface Volume {
 
 export type InspectDockerVolumeResponse = Volume;
 
+export type InspectStackContainerResponse = Container;
+
 export type JsonValue = any;
 
 export type ListActionsResponse = ActionListItem[];
@@ -3375,8 +3387,10 @@ export interface Permission {
 	user_target: UserTarget;
 	/** The target resource */
 	resource_target: ResourceTarget;
-	/** The permission level */
+	/** The permission level for the [user_target] on the [resource_target]. */
 	level?: PermissionLevel;
+	/** Any specific permissions for the [user_target] on the [resource_target]. */
+	specific?: Array<SpecificPermission>;
 }
 
 export type ListPermissionsResponse = Permission[];
@@ -4172,6 +4186,32 @@ export interface ConnectContainerExecQuery {
 	server: string;
 	/** The container name */
 	container: string;
+	/** The shell to connect to */
+	shell: string;
+}
+
+/**
+ * Query to connect to a container exec session (interactive shell over websocket) on the given Deployment.
+ * This call will use access to the Deployment Terminal to permission the call.
+ * TODO: Document calling.
+ */
+export interface ConnectDeploymentExecQuery {
+	/** Deployment Id or name */
+	deployment: string;
+	/** The shell to connect to */
+	shell: string;
+}
+
+/**
+ * Query to connect to a container exec session (interactive shell over websocket) on the given Stack / service.
+ * This call will use access to the Stack Terminal to permission the call.
+ * TODO: Document calling.
+ */
+export interface ConnectStackExecQuery {
+	/** Stack Id or name */
+	stack: string;
+	/** The service name to connect to */
+	service: string;
 	/** The shell to connect to */
 	shell: string;
 }
@@ -5491,7 +5531,7 @@ export interface GetPeripheryVersionResponse {
  * Factors in any UserGroup's permissions they may be a part of.
  * Response: [PermissionLevel]
  */
-export interface GetPermissionLevel {
+export interface GetPermission {
 	/** The target to get user permission on. */
 	target: ResourceTarget;
 }
@@ -5868,6 +5908,15 @@ export interface GetVersionResponse {
 	version: string;
 }
 
+/**
+ * Inspect the docker container associated with the Deployment.
+ * Response: [Container].
+ */
+export interface InspectDeploymentContainer {
+	/** Id or name */
+	deployment: string;
+}
+
 /** Inspect a docker container on the server. Response: [Container]. */
 export interface InspectDockerContainer {
 	/** Id or name */
@@ -5898,6 +5947,17 @@ export interface InspectDockerVolume {
 	server: string;
 	/** The volume name */
 	volume: string;
+}
+
+/**
+ * Inspect the docker container associated with the Stack.
+ * Response: [Container].
+ */
+export interface InspectStackContainer {
+	/** Id or name */
+	stack: string;
+	/** The service name to inspect */
+	service: string;
 }
 
 export interface LatestCommit {
@@ -6442,6 +6502,11 @@ export interface NameAndId {
 export interface NtfyAlerterEndpoint {
 	/** The ntfy topic URL */
 	url: string;
+	/**
+	 * Optional E-Mail Address to enable ntfy email notifications.
+	 * SMTP must be configured on the ntfy server.
+	 */
+	email?: string;
 }
 
 /** Pauses all containers on the target server. Response: [Update] */
@@ -6498,6 +6563,8 @@ export interface PermissionToml {
 	 * - Write
 	 */
 	level: PermissionLevel;
+	/** Any [SpecificPermissions](SpecificPermission) on the resource */
+	specific: Array<SpecificPermission>;
 }
 
 export enum PortTypeEnum {
@@ -6824,10 +6891,12 @@ export interface ResourceToml<PartialConfig> {
 export interface UserGroupToml {
 	/** User group name */
 	name: string;
+	/** Whether all users will implicitly have the permissions in this group. */
+	everyone?: boolean;
 	/** Users in the group */
 	users?: string[];
 	/** Give the user group elevated permissions on all resources of a certain type */
-	all?: Record<ResourceTarget["type"], PermissionLevel>;
+	all?: Record<ResourceTarget["type"], PermissionLevelAndSpecifics | PermissionLevel>;
 	/** Permissions given to the group */
 	permissions?: PermissionToml[];
 }
@@ -7034,6 +7103,17 @@ export interface ServerHealth {
 }
 
 /**
+ * **Admin only.** Set `everyone` property of User Group.
+ * Response: [UserGroup]
+ */
+export interface SetEveryoneUserGroup {
+	/** Id or name. */
+	user_group: string;
+	/** Whether this user group applies to everyone. */
+	everyone: boolean;
+}
+
+/**
  * Set the time the user last opened the UI updates.
  * Used for unseen notification dot.
  * Response: [NoData]
@@ -7042,7 +7122,7 @@ export interface SetLastSeenUpdate {
 }
 
 /**
- * **Admin only.** Completely override the user in the group.
+ * **Admin only.** Completely override the users in the group.
  * Response: [UserGroup]
  */
 export interface SetUsersInUserGroup {
@@ -7355,7 +7435,7 @@ export interface UpdatePermissionOnResourceType {
 	/** The resource type: eg. Server, Build, Deployment, etc. */
 	resource_type: ResourceTarget["type"];
 	/** The base permission level. */
-	permission: PermissionLevel;
+	permission: PermissionLevelAndSpecifics | PermissionLevel;
 }
 
 /**
@@ -7368,7 +7448,7 @@ export interface UpdatePermissionOnTarget {
 	/** Specify the target resource. */
 	resource_target: ResourceTarget;
 	/** Specify the permission level. */
-	permission: PermissionLevel;
+	permission: PermissionLevelAndSpecifics | PermissionLevel;
 }
 
 /**
@@ -7630,16 +7710,6 @@ export type ExecuteRequest =
 	| { type: "PruneDockerBuilders", params: PruneDockerBuilders }
 	| { type: "PruneBuildx", params: PruneBuildx }
 	| { type: "PruneSystem", params: PruneSystem }
-	| { type: "Deploy", params: Deploy }
-	| { type: "BatchDeploy", params: BatchDeploy }
-	| { type: "PullDeployment", params: PullDeployment }
-	| { type: "StartDeployment", params: StartDeployment }
-	| { type: "RestartDeployment", params: RestartDeployment }
-	| { type: "PauseDeployment", params: PauseDeployment }
-	| { type: "UnpauseDeployment", params: UnpauseDeployment }
-	| { type: "StopDeployment", params: StopDeployment }
-	| { type: "DestroyDeployment", params: DestroyDeployment }
-	| { type: "BatchDestroyDeployment", params: BatchDestroyDeployment }
 	| { type: "DeployStack", params: DeployStack }
 	| { type: "BatchDeployStack", params: BatchDeployStack }
 	| { type: "DeployStackIfChanged", params: DeployStackIfChanged }
@@ -7653,6 +7723,16 @@ export type ExecuteRequest =
 	| { type: "UnpauseStack", params: UnpauseStack }
 	| { type: "DestroyStack", params: DestroyStack }
 	| { type: "BatchDestroyStack", params: BatchDestroyStack }
+	| { type: "Deploy", params: Deploy }
+	| { type: "BatchDeploy", params: BatchDeploy }
+	| { type: "PullDeployment", params: PullDeployment }
+	| { type: "StartDeployment", params: StartDeployment }
+	| { type: "RestartDeployment", params: RestartDeployment }
+	| { type: "PauseDeployment", params: PauseDeployment }
+	| { type: "UnpauseDeployment", params: UnpauseDeployment }
+	| { type: "StopDeployment", params: StopDeployment }
+	| { type: "DestroyDeployment", params: DestroyDeployment }
+	| { type: "BatchDestroyDeployment", params: BatchDestroyDeployment }
 	| { type: "RunBuild", params: RunBuild }
 	| { type: "BatchRunBuild", params: BatchRunBuild }
 	| { type: "CancelBuild", params: CancelBuild }
@@ -7684,7 +7764,7 @@ export type ReadRequest =
 	| { type: "ListGitProvidersFromConfig", params: ListGitProvidersFromConfig }
 	| { type: "ListDockerRegistriesFromConfig", params: ListDockerRegistriesFromConfig }
 	| { type: "GetUsername", params: GetUsername }
-	| { type: "GetPermissionLevel", params: GetPermissionLevel }
+	| { type: "GetPermission", params: GetPermission }
 	| { type: "FindUser", params: FindUser }
 	| { type: "ListUsers", params: ListUsers }
 	| { type: "ListApiKeys", params: ListApiKeys }
@@ -7727,6 +7807,21 @@ export type ReadRequest =
 	| { type: "ListDockerVolumes", params: ListDockerVolumes }
 	| { type: "ListComposeProjects", params: ListComposeProjects }
 	| { type: "ListTerminals", params: ListTerminals }
+	| { type: "GetSystemInformation", params: GetSystemInformation }
+	| { type: "GetSystemStats", params: GetSystemStats }
+	| { type: "ListSystemProcesses", params: ListSystemProcesses }
+	| { type: "GetStacksSummary", params: GetStacksSummary }
+	| { type: "GetStack", params: GetStack }
+	| { type: "GetStackActionState", params: GetStackActionState }
+	| { type: "GetStackWebhooksEnabled", params: GetStackWebhooksEnabled }
+	| { type: "GetStackLog", params: GetStackLog }
+	| { type: "SearchStackLog", params: SearchStackLog }
+	| { type: "InspectStackContainer", params: InspectStackContainer }
+	| { type: "ListStacks", params: ListStacks }
+	| { type: "ListFullStacks", params: ListFullStacks }
+	| { type: "ListStackServices", params: ListStackServices }
+	| { type: "ListCommonStackExtraArgs", params: ListCommonStackExtraArgs }
+	| { type: "ListCommonStackBuildExtraArgs", params: ListCommonStackBuildExtraArgs }
 	| { type: "GetDeploymentsSummary", params: GetDeploymentsSummary }
 	| { type: "GetDeployment", params: GetDeployment }
 	| { type: "GetDeploymentContainer", params: GetDeploymentContainer }
@@ -7734,6 +7829,7 @@ export type ReadRequest =
 	| { type: "GetDeploymentStats", params: GetDeploymentStats }
 	| { type: "GetDeploymentLog", params: GetDeploymentLog }
 	| { type: "SearchDeploymentLog", params: SearchDeploymentLog }
+	| { type: "InspectDeploymentContainer", params: InspectDeploymentContainer }
 	| { type: "ListDeployments", params: ListDeployments }
 	| { type: "ListFullDeployments", params: ListFullDeployments }
 	| { type: "ListCommonDeploymentExtraArgs", params: ListCommonDeploymentExtraArgs }
@@ -7758,17 +7854,6 @@ export type ReadRequest =
 	| { type: "GetSyncWebhooksEnabled", params: GetSyncWebhooksEnabled }
 	| { type: "ListResourceSyncs", params: ListResourceSyncs }
 	| { type: "ListFullResourceSyncs", params: ListFullResourceSyncs }
-	| { type: "GetStacksSummary", params: GetStacksSummary }
-	| { type: "GetStack", params: GetStack }
-	| { type: "GetStackActionState", params: GetStackActionState }
-	| { type: "GetStackWebhooksEnabled", params: GetStackWebhooksEnabled }
-	| { type: "GetStackLog", params: GetStackLog }
-	| { type: "SearchStackLog", params: SearchStackLog }
-	| { type: "ListStacks", params: ListStacks }
-	| { type: "ListFullStacks", params: ListFullStacks }
-	| { type: "ListStackServices", params: ListStackServices }
-	| { type: "ListCommonStackExtraArgs", params: ListCommonStackExtraArgs }
-	| { type: "ListCommonStackBuildExtraArgs", params: ListCommonStackBuildExtraArgs }
 	| { type: "GetBuildersSummary", params: GetBuildersSummary }
 	| { type: "GetBuilder", params: GetBuilder }
 	| { type: "ListBuilders", params: ListBuilders }
@@ -7785,15 +7870,51 @@ export type ReadRequest =
 	| { type: "ListUpdates", params: ListUpdates }
 	| { type: "ListAlerts", params: ListAlerts }
 	| { type: "GetAlert", params: GetAlert }
-	| { type: "GetSystemInformation", params: GetSystemInformation }
-	| { type: "GetSystemStats", params: GetSystemStats }
-	| { type: "ListSystemProcesses", params: ListSystemProcesses }
 	| { type: "GetVariable", params: GetVariable }
 	| { type: "ListVariables", params: ListVariables }
 	| { type: "GetGitProviderAccount", params: GetGitProviderAccount }
 	| { type: "ListGitProviderAccounts", params: ListGitProviderAccounts }
 	| { type: "GetDockerRegistryAccount", params: GetDockerRegistryAccount }
 	| { type: "ListDockerRegistryAccounts", params: ListDockerRegistryAccounts };
+
+/** The specific types of permission that a User or UserGroup can have on a resource. */
+export enum SpecificPermission {
+	/**
+	 * On **Server**
+	 * - Access the terminal apis
+	 * On **Stack / Deployment**
+	 * - Access the container exec Apis
+	 */
+	Terminal = "Terminal",
+	/**
+	 * On **Server**
+	 * - Allowed to attach Stacks, Deployments, Repos, Builders to the Server
+	 * On **Builder**
+	 * - Allowed to attach Builds to the Builder
+	 * On **Build**
+	 * - Allowed to attach Deployments to the Build
+	 */
+	Attach = "Attach",
+	/**
+	 * On **Server**
+	 * - Access the `docker inspect` apis
+	 * On **Stack / Deployment**
+	 * - Access `docker inspect $container` for associated containers
+	 */
+	Inspect = "Inspect",
+	/**
+	 * On **Server**
+	 * - Read all container logs on the server
+	 * On **Stack / Deployment**
+	 * - Read the container logs
+	 */
+	Logs = "Logs",
+	/**
+	 * On **Server**
+	 * - Read all the processes on the host
+	 */
+	Processes = "Processes",
+}
 
 export type UserRequest = 
 	| { type: "PushRecentlyViewed", params: PushRecentlyViewed }
@@ -7815,6 +7936,7 @@ export type WriteRequest =
 	| { type: "AddUserToUserGroup", params: AddUserToUserGroup }
 	| { type: "RemoveUserFromUserGroup", params: RemoveUserFromUserGroup }
 	| { type: "SetUsersInUserGroup", params: SetUsersInUserGroup }
+	| { type: "SetEveryoneUserGroup", params: SetEveryoneUserGroup }
 	| { type: "UpdateUserAdmin", params: UpdateUserAdmin }
 	| { type: "UpdateUserBasePermissions", params: UpdateUserBasePermissions }
 	| { type: "UpdatePermissionOnResourceType", params: UpdatePermissionOnResourceType }
@@ -7828,6 +7950,15 @@ export type WriteRequest =
 	| { type: "CreateTerminal", params: CreateTerminal }
 	| { type: "DeleteTerminal", params: DeleteTerminal }
 	| { type: "DeleteAllTerminals", params: DeleteAllTerminals }
+	| { type: "CreateStack", params: CreateStack }
+	| { type: "CopyStack", params: CopyStack }
+	| { type: "DeleteStack", params: DeleteStack }
+	| { type: "UpdateStack", params: UpdateStack }
+	| { type: "RenameStack", params: RenameStack }
+	| { type: "WriteStackFileContents", params: WriteStackFileContents }
+	| { type: "RefreshStackCache", params: RefreshStackCache }
+	| { type: "CreateStackWebhook", params: CreateStackWebhook }
+	| { type: "DeleteStackWebhook", params: DeleteStackWebhook }
 	| { type: "CreateDeployment", params: CreateDeployment }
 	| { type: "CopyDeployment", params: CopyDeployment }
 	| { type: "CreateDeploymentFromContainer", params: CreateDeploymentFromContainer }
@@ -7881,15 +8012,6 @@ export type WriteRequest =
 	| { type: "RefreshResourceSyncPending", params: RefreshResourceSyncPending }
 	| { type: "CreateSyncWebhook", params: CreateSyncWebhook }
 	| { type: "DeleteSyncWebhook", params: DeleteSyncWebhook }
-	| { type: "CreateStack", params: CreateStack }
-	| { type: "CopyStack", params: CopyStack }
-	| { type: "DeleteStack", params: DeleteStack }
-	| { type: "UpdateStack", params: UpdateStack }
-	| { type: "RenameStack", params: RenameStack }
-	| { type: "WriteStackFileContents", params: WriteStackFileContents }
-	| { type: "RefreshStackCache", params: RefreshStackCache }
-	| { type: "CreateStackWebhook", params: CreateStackWebhook }
-	| { type: "DeleteStackWebhook", params: DeleteStackWebhook }
 	| { type: "CreateTag", params: CreateTag }
 	| { type: "DeleteTag", params: DeleteTag }
 	| { type: "RenameTag", params: RenameTag }

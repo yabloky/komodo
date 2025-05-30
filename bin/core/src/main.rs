@@ -22,6 +22,7 @@ mod db;
 mod helpers;
 mod listener;
 mod monitor;
+mod permission;
 mod resource;
 mod schedule;
 mod stack;
@@ -43,7 +44,12 @@ async fn app() -> anyhow::Result<()> {
   };
 
   info!("Komodo Core version: v{}", env!("CARGO_PKG_VERSION"));
-  info!("{:?}", config.sanitized());
+
+  if core_config().pretty_startup_config {
+    info!("{:#?}", config.sanitized());
+  } else {
+    info!("{:?}", config.sanitized());
+  }
 
   // Init jwt client to crash on failure
   state::jwt_client();
@@ -55,7 +61,7 @@ async fn app() -> anyhow::Result<()> {
   );
   // Run after db connection.
   startup::on_startup().await;
-  
+
   // Spawn background tasks
   monitor::spawn_monitor_loop();
   resource::spawn_resource_refresh_loop();

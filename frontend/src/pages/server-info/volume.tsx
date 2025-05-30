@@ -10,8 +10,7 @@ import {
   DockerResourcePageName,
   ShowHideButton,
 } from "@components/util";
-import { useExecute, useRead, useSetTitle } from "@lib/hooks";
-import { has_minimum_permissions } from "@lib/utils";
+import { useExecute, usePermissions, useRead, useSetTitle } from "@lib/hooks";
 import { Types } from "komodo_client";
 import { Badge } from "@ui/badge";
 import { Button } from "@ui/button";
@@ -45,9 +44,7 @@ const VolumePageInner = ({
   useSetTitle(`${server?.name} | volume | ${volume_name}`);
   const nav = useNavigate();
 
-  const perms = useRead("GetPermissionLevel", {
-    target: { type: "Server", id },
-  }).data;
+  const { canExecute, specific } = usePermissions({ type: "Server", id });
 
   const {
     data: volume,
@@ -92,11 +89,6 @@ const VolumePageInner = ({
       </div>
     );
   }
-
-  const canExecute = has_minimum_permissions(
-    perms,
-    Types.PermissionLevel.Execute
-  );
 
   const unused = containers && containers.length === 0 ? true : false;
 
@@ -180,23 +172,25 @@ const VolumePageInner = ({
 
       <DockerLabelsSection labels={volume.Labels} />
 
-      <Section
-        title="Inspect"
-        icon={<SearchCode className="w-4 h-4" />}
-        titleRight={
-          <div className="pl-2">
-            <ShowHideButton show={showInspect} setShow={setShowInspect} />
-          </div>
-        }
-      >
-        {showInspect && (
-          <MonacoEditor
-            value={JSON.stringify(volume, null, 2)}
-            language="json"
-            readOnly
-          />
-        )}
-      </Section>
+      {specific.includes(Types.SpecificPermission.Inspect) && (
+        <Section
+          title="Inspect"
+          icon={<SearchCode className="w-4 h-4" />}
+          titleRight={
+            <div className="pl-2">
+              <ShowHideButton show={showInspect} setShow={setShowInspect} />
+            </div>
+          }
+        >
+          {showInspect && (
+            <MonacoEditor
+              value={JSON.stringify(volume, null, 2)}
+              language="json"
+              readOnly
+            />
+          )}
+        </Section>
+      )}
     </div>
   );
 };

@@ -10,8 +10,7 @@ import {
   ShowHideButton,
 } from "@components/util";
 import { fmt_date_with_minutes, format_size_bytes } from "@lib/formatting";
-import { useExecute, useRead, useSetTitle } from "@lib/hooks";
-import { has_minimum_permissions } from "@lib/utils";
+import { useExecute, usePermissions, useRead, useSetTitle } from "@lib/hooks";
 import { Types } from "komodo_client";
 import { Badge } from "@ui/badge";
 import { Button } from "@ui/button";
@@ -52,9 +51,7 @@ const ImagePageInner = ({
   useSetTitle(`${server?.name} | image | ${image_name}`);
   const nav = useNavigate();
 
-  const perms = useRead("GetPermissionLevel", {
-    target: { type: "Server", id },
-  }).data;
+  const { canExecute, specific } = usePermissions({ type: "Server", id });
 
   const {
     data: image,
@@ -106,11 +103,6 @@ const ImagePageInner = ({
       </div>
     );
   }
-
-  const canExecute = has_minimum_permissions(
-    perms,
-    Types.PermissionLevel.Execute
-  );
 
   const unused = containers && containers.length === 0 ? true : false;
 
@@ -224,23 +216,25 @@ const ImagePageInner = ({
 
       <DockerLabelsSection labels={image?.Config?.Labels} />
 
-      <Section
-        title="Inspect"
-        icon={<SearchCode className="w-4 h-4" />}
-        titleRight={
-          <div className="pl-2">
-            <ShowHideButton show={showInspect} setShow={setShowInspect} />
-          </div>
-        }
-      >
-        {showInspect && (
-          <MonacoEditor
-            value={JSON.stringify(image, null, 2)}
-            language="json"
-            readOnly
-          />
-        )}
-      </Section>
+      {specific.includes(Types.SpecificPermission.Inspect) && (
+        <Section
+          title="Inspect"
+          icon={<SearchCode className="w-4 h-4" />}
+          titleRight={
+            <div className="pl-2">
+              <ShowHideButton show={showInspect} setShow={setShowInspect} />
+            </div>
+          }
+        >
+          {showInspect && (
+            <MonacoEditor
+              value={JSON.stringify(image, null, 2)}
+              language="json"
+              readOnly
+            />
+          )}
+        </Section>
+      )}
     </div>
   );
 };
