@@ -45,8 +45,6 @@ services:
     labels:
       komodo.skip: # Prevent Komodo from stopping with StopAllContainers
     restart: unless-stopped
-    logging:
-      driver: ${COMPOSE_LOGGING_DRIVER:-local}
     # ports:
     #   - 5432:5432
     volumes:
@@ -65,8 +63,6 @@ services:
     restart: unless-stopped
     depends_on:
       - postgres2
-    logging:
-      driver: ${COMPOSE_LOGGING_DRIVER:-local}
     # ports:
     #   - 27017:27017
     volumes:
