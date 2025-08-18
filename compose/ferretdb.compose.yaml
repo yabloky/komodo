@@ -91,5 +91,3 @@ volumes:
   postgres-data:
   # FerretDB
   ferretdb-state:
-  # Core
-  repo-cache:
