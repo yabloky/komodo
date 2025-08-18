@@ -52,7 +52,15 @@ export declare enum ScheduleFormat {
     English = "English",
     Cron = "Cron"
 }
+export declare enum FileFormat {
+    KeyValue = "key_value",
+    Toml = "toml",
+    Yaml = "yaml",
+    Json = "json"
+}
 export interface ActionConfig {
+    /** Whether this action should run at startup. */
+    run_at_startup: boolean;
     /** Choose whether to specify schedule as regular CRON, or using the english to CRON parser. */
     schedule_format?: ScheduleFormat;
     /**
@@ -105,6 +113,13 @@ export interface ActionConfig {
      * Supports variable / secret interpolation.
      */
     file_contents?: string;
+    /**
+     * Specify the format in which the arguments are defined.
+     * Default: `key_value` (like environment)
+     */
+    arguments_format?: FileFormat;
+    /** Default arguments to give to the Action for use in the script at `ARGS`. */
+    arguments?: string;
 }
 /** Represents an empty json object: `{}` */
 export interface NoData {
@@ -437,6 +452,9 @@ export declare enum Operation {
     WriteSyncContents = "WriteSyncContents",
     CommitSync = "CommitSync",
     RunSync = "RunSync",
+    ClearRepoCache = "ClearRepoCache",
+    BackupCoreDatabase = "BackupCoreDatabase",
+    GlobalAutoUpdate = "GlobalAutoUpdate",
     CreateVariable = "CreateVariable",
     UpdateVariableValue = "UpdateVariableValue",
     DeleteVariable = "DeleteVariable",
@@ -688,12 +706,12 @@ export interface BuildInfo {
 }
 export type Build = Resource<BuildConfig, BuildInfo>;
 export declare enum BuildState {
+    /** Currently building */
+    Building = "Building",
     /** Last build successful (or never built) */
     Ok = "Ok",
     /** Last build failed */
     Failed = "Failed",
-    /** Currently building */
-    Building = "Building",
     /** Other case */
     Unknown = "Unknown"
 }
@@ -775,19 +793,25 @@ export type Execution =
 {
     type: "None";
     params: NoData;
-} | {
+}
+/** Run the target action. (alias: `action`, `ac`) */
+ | {
     type: "RunAction";
     params: RunAction;
 } | {
     type: "BatchRunAction";
     params: BatchRunAction;
-} | {
+}
+/** Run the target procedure. (alias: `procedure`, `pr`) */
+ | {
     type: "RunProcedure";
     params: RunProcedure;
 } | {
     type: "BatchRunProcedure";
     params: BatchRunProcedure;
-} | {
+}
+/** Run the target build. (alias: `build`, `bd`) */
+ | {
     type: "RunBuild";
     params: RunBuild;
 } | {
@@ -796,7 +820,9 @@ export type Execution =
 } | {
     type: "CancelBuild";
     params: CancelBuild;
-} | {
+}
+/** Deploy the target deployment. (alias: `dp`) */
+ | {
     type: "Deploy";
     params: Deploy;
 } | {
@@ -826,7 +852,9 @@ export type Execution =
 } | {
     type: "BatchDestroyDeployment";
     params: BatchDestroyDeployment;
-} | {
+}
+/** Clone the target repo */
+ | {
     type: "CloneRepo";
     params: CloneRepo;
 } | {
@@ -910,13 +938,19 @@ export type Execution =
 } | {
     type: "PruneSystem";
     params: PruneSystem;
-} | {
+}
+/** Execute a Resource Sync. (alias: `sync`) */
+ | {
     type: "RunSync";
     params: RunSync;
-} | {
+}
+/** Commit a Resource Sync. (alias: `commit`) */
+ | {
     type: "CommitSync";
     params: CommitSync;
-} | {
+}
+/** Deploy the target stack. (alias: `stack`, `st`) */
+ | {
     type: "DeployStack";
     params: DeployStack;
 } | {
@@ -958,6 +992,15 @@ export type Execution =
 } | {
     type: "TestAlerter";
     params: TestAlerter;
+} | {
+    type: "ClearRepoCache";
+    params: ClearRepoCache;
+} | {
+    type: "BackupCoreDatabase";
+    params: BackupCoreDatabase;
+} | {
+    type: "GlobalAutoUpdate";
+    params: GlobalAutoUpdate;
 } | {
     type: "Sleep";
     params: Sleep;
@@ -1100,15 +1143,6 @@ export interface GitProviderAccount {
     token?: string;
 }
 export type CreateGitProviderAccountResponse = GitProviderAccount;
-/** JSON containing an authentication token. */
-export interface JwtResponse {
-    /** A token the user can use to authenticate their requests. */
-    jwt: string;
-}
-/** Response for [CreateLocalUser]. */
-export type CreateLocalUserResponse = JwtResponse;
-export type CreateProcedureResponse = Procedure;
-export type CreateRepoWebhookResponse = NoData;
 export type UserConfig = 
 /** User that logs in with username / password */
 {
@@ -1177,6 +1211,9 @@ export interface User {
     all?: Record<ResourceTarget["type"], PermissionLevelAndSpecifics | PermissionLevel>;
     updated_at?: I64;
 }
+export type CreateLocalUserResponse = User;
+export type CreateProcedureResponse = Procedure;
+export type CreateRepoWebhookResponse = NoData;
 export type CreateServiceUserResponse = User;
 export type CreateStackWebhookResponse = NoData;
 export type CreateSyncWebhookResponse = NoData;
@@ -1392,6 +1429,13 @@ export interface DeploymentQuerySpecifics {
     update_available?: boolean;
 }
 export type DeploymentQuery = ResourceQuery<DeploymentQuerySpecifics>;
+/** JSON containing an authentication token. */
+export interface JwtResponse {
+    /** User ID for signed in user. */
+    user_id: string;
+    /** A token the user can use to authenticate their requests. */
+    jwt: string;
+}
 /** Response for [ExchangeForJwt]. */
 export type ExchangeForJwtResponse = JwtResponse;
 /** Response containing pretty formatted toml contents. */
@@ -2031,6 +2075,11 @@ export interface ServerConfig {
      * Default: http://localhost:8120
      */
     address: string;
+    /**
+     * The address to use with links for containers on the server.
+     * If empty, will use the 'address' for links.
+     */
+    external_address?: string;
     /** An optional region label */
     region?: string;
     /**
@@ -2515,9 +2564,9 @@ export interface Tag {
      */
     _id?: MongoId;
     name: string;
+    owner?: string;
     /** Hex color code with alpha for UI display */
     color?: TagColor;
-    owner?: string;
 }
 export type GetTagResponse = Tag;
 export type GetUpdateResponse = Update;
@@ -2551,14 +2600,14 @@ export type GetUserGroupResponse = UserGroup;
 export type GetUserResponse = User;
 export type GetVariableResponse = Variable;
 export declare enum ContainerStateStatusEnum {
-    Empty = "",
-    Created = "created",
     Running = "running",
+    Created = "created",
     Paused = "paused",
     Restarting = "restarting",
     Exited = "exited",
     Removing = "removing",
-    Dead = "dead"
+    Dead = "dead",
+    Empty = ""
 }
 export declare enum HealthStatusEnum {
     Empty = "",
@@ -3290,6 +3339,7 @@ export interface Volume {
 }
 export type InspectDockerVolumeResponse = Volume;
 export type InspectStackContainerResponse = Container;
+export type JsonObject = any;
 export type JsonValue = any;
 export type ListActionsResponse = ActionListItem[];
 export type ListAlertersResponse = AlerterListItem[];
@@ -3334,11 +3384,11 @@ export interface ContainerListItem {
     /** The network mode */
     network_mode?: string;
     /** The network names attached to container */
-    networks: string[];
+    networks?: string[];
     /** Port mappings for the container */
-    ports: Port[];
+    ports?: Port[];
     /** The volume names attached to container */
-    volumes: string[];
+    volumes?: string[];
     /** The container stats, if they can be retreived. */
     stats?: ContainerStats;
     /**
@@ -3508,12 +3558,12 @@ export interface Permission {
 }
 export type ListPermissionsResponse = Permission[];
 export declare enum ProcedureState {
+    /** Currently running */
+    Running = "Running",
     /** Last run successful */
     Ok = "Ok",
     /** Last run failed */
     Failed = "Failed",
-    /** Currently running */
-    Running = "Running",
     /** Other case (never run) */
     Unknown = "Unknown"
 }
@@ -3582,14 +3632,14 @@ export interface RepoListItemInfo {
 export type RepoListItem = ResourceListItem<RepoListItemInfo>;
 export type ListReposResponse = RepoListItem[];
 export declare enum ResourceSyncState {
-    /** Last sync successful (or never synced). No Changes pending */
-    Ok = "Ok",
-    /** Last sync failed */
-    Failed = "Failed",
     /** Currently syncing */
     Syncing = "Syncing",
     /** Updates pending */
     Pending = "Pending",
+    /** Last sync successful (or never synced). No Changes pending */
+    Ok = "Ok",
+    /** Last sync failed */
+    Failed = "Failed",
     /** Other case */
     Unknown = "Unknown"
 }
@@ -3652,10 +3702,10 @@ export interface Schedule {
 export type ListSchedulesResponse = Schedule[];
 export type ListSecretsResponse = string[];
 export declare enum ServerState {
-    /** Server is unreachable. */
-    NotOk = "NotOk",
     /** Server health check passing. */
     Ok = "Ok",
+    /** Server is unreachable. */
+    NotOk = "NotOk",
     /** Server is disabled. */
     Disabled = "Disabled"
 }
@@ -3666,6 +3716,11 @@ export interface ServerListItemInfo {
     region: string;
     /** Address of the server. */
     address: string;
+    /**
+     * External address of the server (reachable by users).
+     * Used with links.
+     */
+    external_address?: string;
     /** The Komodo Periphery version of the server. */
     version: string;
     /** Whether server is configured to send unreachable alerts. */
@@ -3839,6 +3894,8 @@ export interface ServerQuerySpecifics {
 /** Server-specific query */
 export type ServerQuery = ResourceQuery<ServerQuerySpecifics>;
 export type SetLastSeenUpdateResponse = NoData;
+/** Response for [SignUpLocalUser]. */
+export type SignUpLocalUserResponse = JwtResponse;
 export interface StackQuerySpecifics {
     /**
      * Query only for Stacks on these Servers.
@@ -3941,6 +3998,18 @@ export interface AwsBuilderConfig {
     docker_registries?: DockerRegistry[];
     /** Which secrets are available on the AMI. */
     secrets?: string[];
+}
+/**
+ * Backs up the Komodo Core database to compressed jsonl files.
+ * Admin only. Response: [Update]
+ *
+ * Mount a folder to `/backups`, and Core will use it to create
+ * timestamped database dumps, which can be restored using
+ * the Komodo CLI.
+ *
+ * TODO: Link to docs
+ */
+export interface BackupCoreDatabase {
 }
 /** Builds multiple Repos in parallel that match pattern. Response: [BatchExecutionResponse]. */
 export interface BatchBuildRepo {
@@ -4177,6 +4246,12 @@ export interface CancelBuild {
 export interface CancelRepoBuild {
     /** Can be id or name */
     repo: string;
+}
+/**
+ * Clears all repos from the Core repo cache. Admin only.
+ * Response: [Update]
+ */
+export interface ClearRepoCache {
 }
 /**
  * Clones the target repo. Response: [Update].
@@ -4677,19 +4752,17 @@ export interface CreateGitProviderAccount {
     account: _PartialGitProviderAccount;
 }
 /**
- * Create a new local user account. Will fail if a user with the
- * given username already exists.
- * Response: [CreateLocalUserResponse].
+ * **Admin only.** Create a local user.
+ * Response: [User].
  *
- * Note. This method is only available if the core api has `local_auth` enabled.
+ * Note. Not to be confused with /auth/SignUpLocalUser.
+ * This method requires admin user credentials, and can
+ * bypass disabled user registration.
  */
 export interface CreateLocalUser {
-    /** The username for the new user. */
+    /** The username for the local user. */
     username: string;
-    /**
-     * The password for the new user.
-     * This cannot be retreived later.
-     */
+    /** A password for the local user. */
     password: string;
 }
 /**
@@ -4796,6 +4869,8 @@ export interface CreateSyncWebhook {
 export interface CreateTag {
     /** The name of the tag. */
     name: string;
+    /** Tag color. Default: Slate. */
+    color?: TagColor;
 }
 /**
  * Configures the behavior of [CreateTerminal] if the
@@ -5353,7 +5428,7 @@ export interface FullContainerStats {
     precpu_stats?: ContainerCpuStats;
     memory_stats?: ContainerMemoryStats;
     /** Network statistics for the container per interface.  This field is omitted if the container has no networking enabled. */
-    networks?: ContainerNetworkStats;
+    networks?: Record<string, ContainerNetworkStats>;
 }
 /** Get a specific action. Response: [Action]. */
 export interface GetAction {
@@ -5529,6 +5604,8 @@ export interface GetCoreInfoResponse {
     github_webhook_owners: string[];
     /** Whether to disable websocket automatic reconnect. */
     disable_websocket_reconnect: boolean;
+    /** Whether to enable fancy toml highlighting. */
+    enable_fancy_toml: boolean;
     /** TZ identifier Core is using, if manually set. */
     timezone: string;
 }
@@ -6060,6 +6137,16 @@ export interface GetVersion {
 export interface GetVersionResponse {
     /** The version of the core api. */
     version: string;
+}
+/**
+ * Trigger a global poll for image updateson Stacks and Deployments
+ * with `poll_for_updates` or `auto_update` enabled.
+ * Admin only. Response: [Update]
+ *
+ * 1. `docker compose pull` any Stacks / Deployments with `poll_for_updates` or `auto_update` enabled. This will pick up any available updates.
+ * 2. Redeploy Stacks / Deployments that have updates found.
+ */
+export interface GlobalAutoUpdate {
 }
 /**
  * Inspect the docker container associated with the Deployment.
@@ -7053,14 +7140,28 @@ export interface RestartStack {
 export interface RunAction {
     /** Id or name */
     action: string;
+    /**
+     * Custom arguments which are merged on top of the default arguments.
+     * CLI Format: `"VAR1=val1&VAR2=val2"`
+     *
+     * Webhook-triggered actions use this to pass WEBHOOK_BRANCH and WEBHOOK_BODY.
+     */
+    args?: JsonObject;
 }
 /**
  * Runs the target build. Response: [Update].
  *
  * 1. Get a handle to the builder. If using AWS builder, this means starting a builder ec2 instance.
+ *
  * 2. Clone the repo on the builder. If an `on_clone` commmand is given, it will be executed.
+ *
  * 3. Execute `docker build {...params}`, where params are determined using the builds configuration.
- * 4. If a dockerhub account is attached, the build will be pushed to that account.
+ *
+ * 4. If a docker registry is configured, the build will be pushed to the registry.
+ *
+ * 5. If using AWS builder, destroy the builder ec2 instance.
+ *
+ * 6. Deploy any Deployments with *Redeploy on Build* enabled.
  */
 export interface RunBuild {
     /** Can be build id or name */
@@ -7211,6 +7312,23 @@ export interface SetUsersInUserGroup {
     /** The user ids or usernames to hard set as the group's users. */
     users: string[];
 }
+/**
+ * Sign up a new local user account. Will fail if a user with the
+ * given username already exists.
+ * Response: [SignUpLocalUserResponse].
+ *
+ * Note. This method is only available if the core api has `local_auth` enabled,
+ * and if user registration is not disabled (after the first user).
+ */
+export interface SignUpLocalUser {
+    /** The username for the new user. */
+    username: string;
+    /**
+     * The password for the new user.
+     * This cannot be retreived later.
+     */
+    password: string;
+}
 /** Info for network interface usage. */
 export interface SingleNetworkInterfaceUsage {
     /** The network interface name */
@@ -7225,6 +7343,7 @@ export interface SlackAlerterEndpoint {
     /** The Slack app webhook url */
     url: string;
 }
+/** Sleeps for the specified time. */
 export interface Sleep {
     duration_ms?: I64;
 }
@@ -7724,8 +7843,8 @@ export type AuthRequest = {
     type: "GetLoginOptions";
     params: GetLoginOptions;
 } | {
-    type: "CreateLocalUser";
-    params: CreateLocalUser;
+    type: "SignUpLocalUser";
+    params: SignUpLocalUser;
 } | {
     type: "LoginLocalUser";
     params: LoginLocalUser;
@@ -7926,6 +8045,15 @@ export type ExecuteRequest = {
 } | {
     type: "RunSync";
     params: RunSync;
+} | {
+    type: "ClearRepoCache";
+    params: ClearRepoCache;
+} | {
+    type: "BackupCoreDatabase";
+    params: BackupCoreDatabase;
+} | {
+    type: "GlobalAutoUpdate";
+    params: GlobalAutoUpdate;
 };
 /**
  * One representative IANA zone for each distinct base UTC offset in the tz database.
@@ -8434,6 +8562,9 @@ export type UserRequest = {
     params: DeleteApiKey;
 };
 export type WriteRequest = {
+    type: "CreateLocalUser";
+    params: CreateLocalUser;
+} | {
     type: "UpdateUserUsername";
     params: UpdateUserUsername;
 } | {

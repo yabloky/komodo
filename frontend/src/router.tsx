@@ -1,5 +1,6 @@
 import { Layout } from "@components/layouts";
-import { useUser } from "@lib/hooks";
+import { LOGIN_TOKENS, useAuth, useUser } from "@lib/hooks";
+import UpdatePage from "@pages/update";
 import { Loader2 } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -25,10 +26,57 @@ const ContainerPage = lazy(() => import("@pages/server-info/container"));
 const ContainersPage = lazy(() => import("@pages/containers"));
 const SchedulesPage = lazy(() => import("@pages/schedules"));
 
+const sanitize_query = (search: URLSearchParams) => {
+  search.delete("token");
+  const query = search.toString();
+  location.replace(
+    `${location.origin}${location.pathname}${query.length ? "?" + query : ""}`
+  );
+};
+
+let exchange_token_sent = false;
+
+/// returns whether to show login / loading screen depending on state of exchange token loop
+const useExchangeToken = () => {
+  const search = new URLSearchParams(location.search);
+  const exchange_token = search.get("token");
+  const { mutate } = useAuth("ExchangeForJwt", {
+    onSuccess: ({ user_id, jwt }) => {
+      LOGIN_TOKENS.add_and_change(user_id, jwt);
+      sanitize_query(search);
+    },
+  });
+
+  // In this case, failed to get user (jwt unset / invalid)
+  // and the exchange token is not in url.
+  // Just show the login.
+  if (!exchange_token) return false;
+
+  // guard against multiple reqs sent
+  // maybe isPending would do this but not sure about with render loop, this for sure will.
+  if (!exchange_token_sent) {
+    mutate({ token: exchange_token });
+    exchange_token_sent = true;
+  }
+
+  return true;
+};
+
 export const Router = () => {
   const { data: user, isLoading, error } = useUser();
 
+  // Handle exchange token loop to avoid showing login flash
+  const exchangeTokenPending = useExchangeToken();
+  if (exchangeTokenPending) {
+    return (
+      <div className="w-screen h-screen flex justify-center items-center">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
   if (isLoading && !user) return null;
+
   if (!user || error) return <Login />;
   if (!user.enabled) return <UserDisabled />;
 
@@ -42,17 +90,21 @@ export const Router = () => {
     >
       <BrowserRouter>
         <Routes>
+          <Route path="login" element={<Login />} />
           <Route path="/" element={<Layout />}>
             <Route path="" element={<Home />} />
             <Route path="settings" element={<Settings />} />
             <Route path="tree" element={<Tree />} />
-            <Route path="alerts" element={<AlertsPage />} />
-            <Route path="updates" element={<UpdatesPage />} />
             <Route path="containers" element={<ContainersPage />} />
             <Route path="resources" element={<AllResources />} />
             <Route path="schedules" element={<SchedulesPage />} />
+            <Route path="alerts" element={<AlertsPage />} />
             <Route path="user-groups/:id" element={<UserGroupPage />} />
             <Route path="users/:id" element={<UserPage />} />
+            <Route path="updates">
+              <Route path="" element={<UpdatesPage />} />
+              <Route path=":id" element={<UpdatePage />} />
+            </Route>
             <Route path=":type">
               <Route path="" element={<Resources />} />
               <Route path=":id" element={<Resource />} />
@@ -76,3 +128,5 @@ export const Router = () => {
 
   // return <RouterProvider router={ROUTER} />;
 };
+
+

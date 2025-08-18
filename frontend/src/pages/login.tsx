@@ -9,57 +9,31 @@ import {
 } from "@ui/card";
 import { Input } from "@ui/input";
 import { Label } from "@ui/label";
-import { useAuth, useLoginOptions, useUserInvalidate } from "@lib/hooks";
+import {
+  LOGIN_TOKENS,
+  useAuth,
+  useLoginOptions,
+  useUserInvalidate,
+} from "@lib/hooks";
 import { useState } from "react";
 import { ThemeToggle } from "@ui/theme";
-import { AUTH_TOKEN_STORAGE_KEY, KOMODO_BASE_URL } from "@main";
-import { KeyRound, Loader2, X } from "lucide-react";
+import { KOMODO_BASE_URL } from "@main";
+import { KeyRound, X } from "lucide-react";
 import { cn } from "@lib/utils";
 import { useToast } from "@ui/use-toast";
+import { Types } from "komodo_client";
 
 type OauthProvider = "Github" | "Google" | "OIDC";
 
 const login_with_oauth = (provider: OauthProvider) => {
-  const redirect = encodeURIComponent(location.href);
+  const _redirect = location.pathname.startsWith("/login")
+    ? location.origin +
+      (new URLSearchParams(location.search).get("backto") ?? "")
+    : location.href;
+  const redirect = encodeURIComponent(_redirect);
   location.replace(
     `${KOMODO_BASE_URL}/auth/${provider.toLowerCase()}/login?redirect=${redirect}`
   );
-};
-
-const sanitize_query = (search: URLSearchParams) => {
-  search.delete("token");
-  const query = search.toString();
-  location.replace(
-    `${location.origin}${location.pathname}${query.length ? "?" + query : ""}`
-  );
-};
-
-let exchange_token_sent = false;
-
-/// returns whether to show login / loading screen depending on state of exchange token loop
-const useExchangeToken = () => {
-  const search = new URLSearchParams(location.search);
-  const exchange_token = search.get("token");
-  const { mutate } = useAuth("ExchangeForJwt", {
-    onSuccess: ({ jwt }) => {
-      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, jwt);
-      sanitize_query(search);
-    },
-  });
-
-  // In this case, failed to get user (jwt unset / invalid)
-  // and the exchange token is not in url.
-  // Just show the login.
-  if (!exchange_token) return false;
-
-  // guard against multiple reqs sent
-  // maybe isPending would do this but not sure about with render loop, this for sure will.
-  if (!exchange_token_sent) {
-    mutate({ token: exchange_token });
-    exchange_token_sent = true;
-  }
-
-  return true;
 };
 
 export default function Login() {
@@ -67,12 +41,23 @@ export default function Login() {
   const [creds, set] = useState({ username: "", password: "" });
   const userInvalidate = useUserInvalidate();
   const { toast } = useToast();
-  const onSuccess = ({ jwt }: { jwt: string }) => {
-    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, jwt);
+
+  // If signing in another user, need to redirect away from /login manually
+  const maybeNavigate = location.pathname.startsWith("/login")
+    ? () =>
+        location.replace(
+          new URLSearchParams(location.search).get("backto") ?? "/"
+        )
+    : undefined;
+
+  const onSuccess = ({ user_id, jwt }: Types.JwtResponse) => {
+    LOGIN_TOKENS.add_and_change(user_id, jwt);
     userInvalidate();
+    maybeNavigate?.();
   };
+
   const { mutate: signup, isPending: signupPending } = useAuth(
-    "CreateLocalUser",
+    "SignUpLocalUser",
     {
       onSuccess,
       onError: (e: any) => {
@@ -113,15 +98,7 @@ export default function Login() {
     },
   });
 
-  // Handle exchange token loop to avoid showing login flash
-  const exchangeTokenPending = useExchangeToken();
-  if (exchangeTokenPending) {
-    return (
-      <div className="w-screen h-screen flex justify-center items-center">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    );
-  }
+  
 
   const no_auth_configured =
     options !== undefined &&

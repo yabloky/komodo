@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, anyhow};
+use database::mungos::by_id::find_one_by_id;
 use formatting::{Color, bold, colored, format_serror, muted};
 use futures::future::join_all;
 use komodo_client::{
@@ -17,7 +18,6 @@ use komodo_client::{
     user::procedure_user,
   },
 };
-use mungos::by_id::find_one_by_id;
 use resolver_api::Resolve;
 use tokio::sync::Mutex;
 
@@ -1124,6 +1124,57 @@ async fn execute_execution(
       )
       .await?
     }
+    Execution::ClearRepoCache(req) => {
+      let req = ExecuteRequest::ClearRepoCache(req);
+      let update = init_execution_update(&req, &user).await?;
+      let ExecuteRequest::ClearRepoCache(req) = req else {
+        unreachable!()
+      };
+      let update_id = update.id.clone();
+      handle_resolve_result(
+        req
+          .resolve(&ExecuteArgs { user, update })
+          .await
+          .map_err(|e| e.error)
+          .context("Failed at ClearRepoCache"),
+        &update_id,
+      )
+      .await?
+    }
+    Execution::BackupCoreDatabase(req) => {
+      let req = ExecuteRequest::BackupCoreDatabase(req);
+      let update = init_execution_update(&req, &user).await?;
+      let ExecuteRequest::BackupCoreDatabase(req) = req else {
+        unreachable!()
+      };
+      let update_id = update.id.clone();
+      handle_resolve_result(
+        req
+          .resolve(&ExecuteArgs { user, update })
+          .await
+          .map_err(|e| e.error)
+          .context("Failed at BackupCoreDatabase"),
+        &update_id,
+      )
+      .await?
+    }
+    Execution::GlobalAutoUpdate(req) => {
+      let req = ExecuteRequest::GlobalAutoUpdate(req);
+      let update = init_execution_update(&req, &user).await?;
+      let ExecuteRequest::GlobalAutoUpdate(req) = req else {
+        unreachable!()
+      };
+      let update_id = update.id.clone();
+      handle_resolve_result(
+        req
+          .resolve(&ExecuteArgs { user, update })
+          .await
+          .map_err(|e| e.error)
+          .context("Failed at GlobalAutoUpdate"),
+        &update_id,
+      )
+      .await?
+    }
     Execution::Sleep(req) => {
       let duration = Duration::from_millis(req.duration_ms as u64);
       tokio::time::sleep(duration).await;
@@ -1215,7 +1266,10 @@ impl ExtendBatch for BatchRunProcedure {
 impl ExtendBatch for BatchRunAction {
   type Resource = Action;
   fn single_execution(action: String) -> Execution {
-    Execution::RunAction(RunAction { action })
+    Execution::RunAction(RunAction {
+      action,
+      args: Default::default(),
+    })
   }
 }
 

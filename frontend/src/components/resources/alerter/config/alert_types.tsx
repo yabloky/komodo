@@ -19,10 +19,13 @@ const ALERT_TYPES: Types.AlertData["type"][] = [
   "DeploymentImageUpdateAvailable",
   "DeploymentAutoUpdated",
   // Misc
-  "AwsBuilderTerminationFailed",
-  "ResourceSyncPendingUpdates",
+  "ScheduleRun",
   "BuildFailed",
+  "ResourceSyncPendingUpdates",
   "RepoBuildFailed",
+  "ActionFailed",
+  "ProcedureFailed",
+  "AwsBuilderTerminationFailed",
 ];
 
 export const AlertTypeConfig = ({

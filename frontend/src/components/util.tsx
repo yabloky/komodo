@@ -25,7 +25,6 @@ import {
   HardDrive,
   LinkIcon,
   Loader2,
-  LogOut,
   Network,
   Search,
   SearchX,
@@ -45,7 +44,6 @@ import {
 import { toast, useToast } from "@ui/use-toast";
 import { cn, filterBySplit, usableResourcePath } from "@lib/utils";
 import { Link, useNavigate } from "react-router-dom";
-import { AUTH_TOKEN_STORAGE_KEY } from "@main";
 import { Textarea } from "@ui/textarea";
 import { Card } from "@ui/card";
 import {
@@ -69,7 +67,6 @@ import {
   useContainerPortsMap,
   useRead,
   useTemplatesQueryBehavior,
-  useUser,
 } from "@lib/hooks";
 import { Prune } from "./resources/server/actions";
 import { MonacoEditor, MonacoLanguage } from "./monaco";
@@ -151,7 +148,10 @@ export const ActionButton = forwardRef<
     <Button
       size={size}
       variant={variant || "secondary"}
-      className={cn("flex items-center justify-between w-[190px]", className)}
+      className={cn(
+        "flex flex-1 shrink-0 gap-4 items-center justify-between max-w-[190px]",
+        className
+      )}
       onClick={onClick}
       onBlur={onBlur}
       disabled={disabled || loading}
@@ -327,27 +327,6 @@ export const ConfirmButton = ({
   );
 };
 
-export const Logout = () => {
-  const user = useUser().data;
-  return (
-    user && (
-      <Button
-        variant="ghost"
-        onClick={() => {
-          localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-          location.reload();
-        }}
-        className="px-2 flex flex-row gap-2 items-center"
-      >
-        <div className="hidden xl:flex max-w-[120px] overflow-hidden overflow-ellipsis">
-          {user.username}
-        </div>
-        <LogOut className="w-4 h-4" />
-      </Button>
-    )
-  );
-};
-
 export const UserSettings = () => (
   <Link to="/settings">
     <Button variant="ghost" size="icon">
@@ -359,16 +338,20 @@ export const UserSettings = () => (
 export const CopyButton = ({
   content,
   className,
+  icon = <Copy className="w-4 h-4" />,
+  label = "selection",
 }: {
   content: string | undefined;
   className?: string;
+  icon?: ReactNode;
+  label?: string;
 }) => {
   const { toast } = useToast();
   const [copied, set] = useState(false);
 
   useEffect(() => {
     if (copied) {
-      toast({ title: "Copied selection" });
+      toast({ title: "Copied " + label });
       const timeout = setTimeout(() => set(false), 3000);
       return () => {
         clearTimeout(timeout);
@@ -388,7 +371,7 @@ export const CopyButton = ({
       }}
       disabled={!content}
     >
-      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+      {copied ? <Check className="w-4 h-4" /> : icon}
     </Button>
   );
 };
@@ -850,16 +833,16 @@ export const DockerContainersSection = ({
                   <SortableHeader column={column} title="Networks" />
                 ),
                 cell: ({ row }) =>
-                  row.original.networks.length > 0 ? (
+                  (row.original.networks?.length ?? 0) > 0 ? (
                     <div className="flex items-center gap-x-2 flex-wrap">
-                      {row.original.networks.map((network, i) => (
+                      {row.original.networks?.map((network, i) => (
                         <Fragment key={network}>
                           <DockerResourceLink
                             type="network"
                             server_id={server_id}
                             name={network}
                           />
-                          {i !== row.original.networks.length - 1 && (
+                          {i !== row.original.networks!.length - 1 && (
                             <div className="text-muted-foreground">|</div>
                           )}
                         </Fragment>
@@ -883,7 +866,7 @@ export const DockerContainersSection = ({
                 ),
                 cell: ({ row }) => (
                   <ContainerPortsTableView
-                    ports={row.original.ports}
+                    ports={row.original.ports ?? []}
                     server_id={row.original.server_id}
                   />
                 ),
@@ -1174,12 +1157,15 @@ export const ContainerPortLink = ({
   ports: Types.Port[];
   server_id: string | undefined;
 }) => {
+  const server = useServer(server_id);
   // Get the server address with periphery port removed
-  const server_address = useServer(server_id)
-    ?.info.address.split(":")
-    // take just protocol and dns (indexes 0 and 1)
-    .filter((_, i) => i < 2)
-    .join(":");
+  const server_address = server?.info.external_address
+    ? server.info.external_address
+    : server?.info.address
+        .split(":")
+        // take just protocol and dns (indexes 0 and 1)
+        .filter((_, i) => i < 2)
+        .join(":");
   const link =
     host_port === "443"
       ? server_address

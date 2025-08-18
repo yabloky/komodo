@@ -4,6 +4,15 @@ use std::{
 };
 
 use anyhow::{Context, anyhow};
+use database::mungos::{
+  by_id::{delete_one_by_id, update_one_by_id},
+  find::find_collect,
+  mongodb::{
+    Collection,
+    bson::{Document, doc, oid::ObjectId, to_document},
+    options::FindOptions,
+  },
+};
 use formatting::format_serror;
 use futures::future::join_all;
 use indexmap::IndexSet;
@@ -23,15 +32,6 @@ use komodo_client::{
     user::{User, system_user},
   },
   parsers::parse_string_list,
-};
-use mungos::{
-  by_id::{delete_one_by_id, update_one_by_id},
-  find::find_collect,
-  mongodb::{
-    Collection,
-    bson::{Document, doc, oid::ObjectId, to_document},
-    options::FindOptions,
-  },
 };
 use partial_derive2::{Diff, MaybeNone, PartialDiff};
 use resolver_api::Resolve;
@@ -70,7 +70,8 @@ pub use procedure::{
   refresh_procedure_state_cache, spawn_procedure_state_refresh_loop,
 };
 pub use refresh::{
-  refresh_all_resources_cache, spawn_all_resources_refresh_loop,
+  refresh_all_resources_cache,
+  spawn_all_resources_cache_refresh_loop,
   spawn_resource_refresh_loop,
 };
 pub use repo::{
@@ -181,7 +182,8 @@ pub trait KomodoResource {
   fn update_document(
     _original: Resource<Self::Config, Self::Info>,
     config: Self::PartialConfig,
-  ) -> Result<Document, mungos::mongodb::bson::ser::Error> {
+  ) -> Result<Document, database::mungos::mongodb::bson::ser::Error>
+  {
     to_document(&config)
   }
 
@@ -271,26 +273,26 @@ pub async fn list_for_user<T: KomodoResource>(
   list_for_user_using_document::<T>(filters, user, permissions).await
 }
 
-#[instrument(level = "debug")]
-pub async fn list_for_user_using_pattern<T: KomodoResource>(
-  pattern: &str,
-  query: ResourceQuery<T::QuerySpecifics>,
-  user: &User,
-  permissions: PermissionLevelAndSpecifics,
-  all_tags: &[Tag],
-) -> anyhow::Result<Vec<T::ListItem>> {
-  let list = list_full_for_user_using_pattern::<T>(
-    pattern,
-    query,
-    user,
-    permissions,
-    all_tags,
-  )
-  .await?
-  .into_iter()
-  .map(|resource| T::to_list_item(resource));
-  Ok(join_all(list).await)
-}
+// #[instrument(level = "debug")]
+// pub async fn list_for_user_using_pattern<T: KomodoResource>(
+//   pattern: &str,
+//   query: ResourceQuery<T::QuerySpecifics>,
+//   user: &User,
+//   permissions: PermissionLevelAndSpecifics,
+//   all_tags: &[Tag],
+// ) -> anyhow::Result<Vec<T::ListItem>> {
+//   let list = list_full_for_user_using_pattern::<T>(
+//     pattern,
+//     query,
+//     user,
+//     permissions,
+//     all_tags,
+//   )
+//   .await?
+//   .into_iter()
+//   .map(|resource| T::to_list_item(resource));
+//   Ok(join_all(list).await)
+// }
 
 #[instrument(level = "debug")]
 pub async fn list_for_user_using_document<T: KomodoResource>(
@@ -705,6 +707,7 @@ pub async fn update_meta<T: KomodoResource>(
         Ok(tag) => Ok(tag.id),
         Err(_) => CreateTag {
           name: tag.to_string(),
+          color: None,
         }
         .resolve(args)
         .await
@@ -762,7 +765,7 @@ pub async fn rename<T: KomodoResource>(
   update_one_by_id(
     T::coll(),
     &resource.id,
-    mungos::update::Update::Set(
+    database::mungos::update::Update::Set(
       doc! { "name": &name, "updated_at": komodo_timestamp() },
     ),
     None,
@@ -872,7 +875,7 @@ pub fn validate_resource_query_tags<T: Default + std::fmt::Debug>(
         .find(|t| t.name == *tag || t.id == *tag)
         .map(|tag| tag.id.clone())
         .with_context(|| {
-          format!("No tag found matching name or id: {}", tag)
+          format!("No tag found matching name or id: {tag}")
         })
     })
     .collect::<anyhow::Result<Vec<_>>>()?;

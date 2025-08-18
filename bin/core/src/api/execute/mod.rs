@@ -5,6 +5,7 @@ use axum::{
   Extension, Router, extract::Path, middleware, routing::post,
 };
 use axum_extra::{TypedHeader, headers::ContentType};
+use database::mungos::by_id::find_one_by_id;
 use derive_variants::{EnumVariants, ExtractVariant};
 use formatting::format_serror;
 use futures::future::join_all;
@@ -17,7 +18,6 @@ use komodo_client::{
     user::User,
   },
 };
-use mungos::by_id::find_one_by_id;
 use resolver_api::Resolve;
 use response::JsonString;
 use serde::{Deserialize, Serialize};
@@ -37,6 +37,7 @@ mod action;
 mod alerter;
 mod build;
 mod deployment;
+mod maintenance;
 mod procedure;
 mod repo;
 mod server;
@@ -141,6 +142,11 @@ pub enum ExecuteRequest {
 
   // ==== SYNC ====
   RunSync(RunSync),
+
+  // ==== MAINTENANCE ====
+  ClearRepoCache(ClearRepoCache),
+  BackupCoreDatabase(BackupCoreDatabase),
+  GlobalAutoUpdate(GlobalAutoUpdate),
 }
 
 pub fn router() -> Router {
@@ -195,8 +201,10 @@ pub fn inner_handler(
   Box::pin(async move {
     let req_id = Uuid::new_v4();
 
-    // need to validate no cancel is active before any update is created.
+    // Need to validate no cancel is active before any update is created.
+    // This ensures no double update created if Cancel is called more than once for the same request.
     build::validate_cancel_build(&request).await?;
+    repo::validate_cancel_repo_build(&request).await?;
 
     let update = init_execution_update(&request, &user).await?;
 

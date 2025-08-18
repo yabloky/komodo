@@ -103,8 +103,11 @@ impl Resolve<super::Args> for GetComposeLog {
       timestamps,
     } = self;
     let docker_compose = docker_compose();
-    let timestamps =
-      timestamps.then_some(" --timestamps").unwrap_or_default();
+    let timestamps = if timestamps {
+      " --timestamps"
+    } else {
+      Default::default()
+    };
     let command = format!(
       "{docker_compose} -p {project} logs --tail {tail}{timestamps} {}",
       services.join(" ")
@@ -126,8 +129,11 @@ impl Resolve<super::Args> for GetComposeLogSearch {
     } = self;
     let docker_compose = docker_compose();
     let grep = log_grep(&terms, combinator, invert);
-    let timestamps =
-      timestamps.then_some(" --timestamps").unwrap_or_default();
+    let timestamps = if timestamps {
+      " --timestamps"
+    } else {
+      Default::default()
+    };
     let command = format!(
       "{docker_compose} -p {project} logs --tail 5000{timestamps} {} 2>&1 | {grep}",
       services.join(" ")
@@ -269,7 +275,7 @@ impl Resolve<super::Args> for WriteCommitComposeContents {
       .join(&file_path);
 
     let msg = if let Some(username) = username {
-      format!("{}: Write Compose File", username)
+      format!("{username}: Write Compose File")
     } else {
       "Write Compose File".to_string()
     };
@@ -556,7 +562,7 @@ impl Resolve<super::Args> for ComposeUp {
         return Ok(res);
       }
       let compose =
-        serde_yaml::from_str::<ComposeFile>(&config_log.stdout)
+        serde_yaml_ng::from_str::<ComposeFile>(&config_log.stdout)
           .context("Failed to parse compose contents")?;
       // Record sanitized compose config output
       res.compose_config = Some(config_log.stdout);
@@ -601,7 +607,7 @@ impl Resolve<super::Args> for ComposeUp {
       let build_extra_args =
         parse_extra_args(&stack.config.build_extra_args);
       let command = format!(
-        "{docker_compose} -p {project_name} -f {file_args}{env_file}{additional_env_files} build{build_extra_args}{service_args}",
+        "{docker_compose} -p {project_name} -f {file_args}{additional_env_files}{env_file} build{build_extra_args}{service_args}",
       );
       let Some(log) = run_komodo_command_with_sanitization(
         "Compose Build",
@@ -625,7 +631,7 @@ impl Resolve<super::Args> for ComposeUp {
       // Pull images before destroying to minimize downtime.
       // If this fails, do not continue.
       let command = format!(
-        "{docker_compose} -p {project_name} -f {file_args}{env_file}{additional_env_files} pull{service_args}",
+        "{docker_compose} -p {project_name} -f {file_args}{additional_env_files}{env_file} pull{service_args}",
       );
       let log = run_komodo_command(
         "Compose Pull",
@@ -653,7 +659,7 @@ impl Resolve<super::Args> for ComposeUp {
     // Run compose up
     let extra_args = parse_extra_args(&stack.config.extra_args);
     let command = format!(
-      "{docker_compose} -p {project_name} -f {file_args}{env_file}{additional_env_files} up -d{extra_args}{service_args}",
+      "{docker_compose} -p {project_name} -f {file_args}{additional_env_files}{env_file} up -d{extra_args}{service_args}",
     );
 
     let Some(log) = run_komodo_command_with_sanitization(
