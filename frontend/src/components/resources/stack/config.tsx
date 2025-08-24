@@ -1004,7 +1004,7 @@ const ConfigFiles = ({
                 />
 
                 <RequiresSelector
-                  requires={requires ?? Types.StackFileRequires.Redeploy}
+                  requires={requires ?? Types.StackFileRequires.None}
                   set={(requires) => {
                     values[i] = { ...values[i], requires };
                     set({ config_files: [...values] });
