@@ -71,13 +71,13 @@ export interface ActionConfig {
      * 1. Regular CRON expression:
      *
      * (second, minute, hour, day, month, day-of-week)
-     * ```
+     * ```text
      * 0 0 0 1,15 * ?
      * ```
      *
      * 2. "English" expression via [english-to-cron](https://crates.io/crates/english-to-cron):
      *
-     * ```
+     * ```text
      * at midnight on the 1st and 15th of the month
      * ```
      */
@@ -391,6 +391,7 @@ export declare enum Operation {
     UnpauseStack = "UnpauseStack",
     StopStack = "StopStack",
     DestroyStack = "DestroyStack",
+    RunStackService = "RunStackService",
     DeployStackService = "DeployStackService",
     PullStackService = "PullStackService",
     StartStackService = "StartStackService",
@@ -445,6 +446,7 @@ export declare enum Operation {
     RenameAlerter = "RenameAlerter",
     DeleteAlerter = "DeleteAlerter",
     TestAlerter = "TestAlerter",
+    SendAlert = "SendAlert",
     CreateResourceSync = "CreateResourceSync",
     UpdateResourceSync = "UpdateResourceSync",
     RenameResourceSync = "RenameResourceSync",
@@ -640,8 +642,11 @@ export interface BuildConfig {
     build_path: string;
     /** The path of the dockerfile relative to the build path. */
     dockerfile_path: string;
-    /** Configuration for the registry to push the built image to. */
-    image_registry?: ImageRegistryConfig;
+    /**
+     * Configuration for the registry/s to push the built image to.
+     * The first registry in this list will be used with attached Deployments.
+     */
+    image_registry?: ImageRegistryConfig[];
     /** Whether to skip secret interpolation in the build_args. */
     skip_secret_interp?: boolean;
     /** Whether to use buildx to build (eg `docker buildx build ...`) */
@@ -742,7 +747,7 @@ export interface BuildListItemInfo {
     built_hash?: string;
     /** Latest short commit hash, or null. Only for repo based stacks */
     latest_hash?: string;
-    /** The image registry domain */
+    /** The first listed image registry domain */
     image_registry_domain?: string;
 }
 export type BuildListItem = ResourceListItem<BuildListItemInfo>;
@@ -990,8 +995,14 @@ export type Execution =
     type: "BatchDestroyStack";
     params: BatchDestroyStack;
 } | {
+    type: "RunStackService";
+    params: RunStackService;
+} | {
     type: "TestAlerter";
     params: TestAlerter;
+} | {
+    type: "SendAlert";
+    params: SendAlert;
 } | {
     type: "ClearRepoCache";
     params: ClearRepoCache;
@@ -1035,13 +1046,13 @@ export interface ProcedureConfig {
      * 1. Regular CRON expression:
      *
      * (second, minute, hour, day, month, day-of-week)
-     * ```
+     * ```text
      * 0 0 0 1,15 * ?
      * ```
      *
      * 2. "English" expression via [english-to-cron](https://crates.io/crates/english-to-cron):
      *
-     * ```
+     * ```text
      * at midnight on the 1st and 15th of the month
      * ```
      */
@@ -1453,11 +1464,23 @@ export type GetActionActionStateResponse = ActionActionState;
 export type GetActionResponse = Action;
 /** Severity level of problem. */
 export declare enum SeverityLevel {
-    /** No problem. */
+    /**
+     * No problem.
+     *
+     * Aliases: ok, low, l
+     */
     Ok = "OK",
-    /** Problem is imminent. */
+    /**
+     * Problem is imminent.
+     *
+     * Aliases: warning, w, medium, m
+     */
     Warning = "WARNING",
-    /** Problem fully realized. */
+    /**
+     * Problem fully realized.
+     *
+     * Aliases: critical, c, high, h
+     */
     Critical = "CRITICAL"
 }
 /** The variants of data related to the alert. */
@@ -1540,6 +1563,22 @@ export type AlertData =
         used_gb: number;
         /** The total size of the disk in GB */
         total_gb: number;
+    };
+}
+/** A server has a version mismatch with the core. */
+ | {
+    type: "ServerVersionMismatch";
+    data: {
+        /** The id of the server */
+        id: string;
+        /** The name of the server */
+        name: string;
+        /** The region of the server */
+        region?: string;
+        /** The actual server version */
+        server_version: string;
+        /** The core version */
+        core_version: string;
     };
 }
 /** A container's state has changed unexpectedly. */
@@ -1716,6 +1755,19 @@ export type AlertData =
         id: string;
         /** The resource name */
         name: string;
+    };
+}
+/**
+ * Custom header / body.
+ * Produced using `/execute/SendAlert`
+ */
+ | {
+    type: "Custom";
+    data: {
+        /** The alert message. */
+        message: string;
+        /** Message details. May be empty string. */
+        details?: string;
     };
 };
 /** Representation of an alert in the system. */
@@ -2086,7 +2138,7 @@ export interface ServerConfig {
      * Whether a server is enabled.
      * If a server is disabled,
      * you won't be able to perform any actions on it or see deployment's status.
-     * default: true
+     * Default: false
      */
     enabled: boolean;
     /**
@@ -2125,6 +2177,8 @@ export interface ServerConfig {
     send_mem_alerts: boolean;
     /** Whether to send alerts about the servers DISK status */
     send_disk_alerts: boolean;
+    /** Whether to send alerts about the servers version mismatch with core */
+    send_version_mismatch_alerts: boolean;
     /** The percentage threshhold which triggers WARNING state for CPU. */
     cpu_warning: number;
     /** The percentage threshhold which triggers CRITICAL state for CPU. */
@@ -2154,6 +2208,23 @@ export interface StackActionState {
 }
 export type GetStackActionStateResponse = StackActionState;
 export type GetStackLogResponse = Log;
+export declare enum StackFileRequires {
+    /** Diff requires service redeploy. */
+    Redeploy = "Redeploy",
+    /** Diff requires service restart */
+    Restart = "Restart",
+    /** Diff requires no action. Default. */
+    None = "None"
+}
+/** Configure additional file dependencies of the Stack. */
+export interface StackFileDependency {
+    /** Specify the file */
+    path: string;
+    /** Specify specific service/s */
+    services?: string[];
+    /** Specify */
+    requires?: StackFileRequires;
+}
 /** The compose file configuration. */
 export interface StackConfig {
     /** The server to deploy the stack on. */
@@ -2268,8 +2339,21 @@ export interface StackConfig {
     /**
      * Add additional env files to attach with `--env-file`.
      * Relative to the run directory root.
+     *
+     * Note. It is already included as an `additional_file`.
+     * Don't add it again there.
      */
     additional_env_files?: string[];
+    /**
+     * Add additional config files either in repo or on host to track.
+     * Can add any files associated with the stack to enable editing them in the UI.
+     * Doing so will also include diffing these when deciding to deploy in `DeployStackIfChanged`.
+     * Relative to the run directory.
+     *
+     * Note. If the config file is .env and should be included in compose command
+     * using `--env-file`, add it to `additional_env_files` instead.
+     */
+    config_files?: StackFileDependency[];
     /** Whether to send StackStateChange alerts for this stack. */
     send_alerts: boolean;
     /** Used with `registry_account` to login to a registry before docker compose up. */
@@ -2314,7 +2398,7 @@ export interface StackConfig {
     environment?: string;
 }
 export interface FileContents {
-    /** The path of the file on the host */
+    /** The path to the file */
     path: string;
     /** The contents of the file */
     contents: string;
@@ -2344,9 +2428,26 @@ export interface StackServiceNames {
     /** The services image. */
     image?: string;
 }
+/**
+ * Same as [FileContents] with some extra
+ * info specific to Stacks.
+ */
+export interface StackRemoteFileContents {
+    /** The path to the file */
+    path: string;
+    /** The contents of the file */
+    contents: string;
+    /**
+     * The services depending on this file,
+     * or empty for global requirement (eg all compose files and env files).
+     */
+    services?: string[];
+    /** Whether diff requires Redeploy / Restart / None */
+    requires?: StackFileRequires;
+}
 export interface StackInfo {
     /**
-     * If any of the expected files are missing in the repo,
+     * If any of the expected compose / additional files are missing in the repo,
      * they will be stored here.
      */
     missing_files?: string[];
@@ -2362,7 +2463,7 @@ export interface StackInfo {
     /** Deployed commit message, or null. Only for repo based stacks */
     deployed_message?: string;
     /**
-     * The deployed compose file contents.
+     * The deployed compose / additional file contents.
      * This is updated whenever Komodo successfully deploys the stack.
      */
     deployed_contents?: FileContents[];
@@ -2382,11 +2483,11 @@ export interface StackInfo {
      */
     latest_services?: StackServiceNames[];
     /**
-     * The remote compose file contents, whether on host or in repo.
+     * The remote compose / additional file contents, whether on host or in repo.
      * This is updated whenever Komodo refreshes the stack cache.
      * It will be empty if the file is defined directly in the stack config.
      */
-    remote_contents?: FileContents[];
+    remote_contents?: StackRemoteFileContents[];
     /** If there was an error in getting the remote contents, it will be here. */
     remote_errors?: FileContents[];
     /** Latest commit hash, or null */
@@ -2416,6 +2517,14 @@ export interface SystemInformation {
     container_exec_disabled: boolean;
 }
 export type GetSystemInformationResponse = SystemInformation;
+export interface SystemLoadAverage {
+    /** 1m load average */
+    one: number;
+    /** 5m load average */
+    five: number;
+    /** 15m load average */
+    fifteen: number;
+}
 /** Info for a single disk mounted on the system. */
 export interface SingleDiskUsage {
     /** The mount point of the disk */
@@ -2475,6 +2584,8 @@ export declare enum Timelength {
 export interface SystemStats {
     /** Cpu usage percentage */
     cpu_perc: number;
+    /** Load average (1m, 5m, 15m) */
+    load_average?: SystemLoadAverage;
     /**
      * [1.15.9+]
      * Free memory in GB.
@@ -3731,6 +3842,8 @@ export interface ServerListItemInfo {
     send_mem_alerts: boolean;
     /** Whether server is configured to send disk alerts. */
     send_disk_alerts: boolean;
+    /** Whether server is configured to send version mismatch alerts. */
+    send_version_mismatch_alerts: boolean;
     /** Whether terminals are disabled for this Server. */
     terminals_disabled: boolean;
     /** Whether container exec is disabled for this Server. */
@@ -3903,6 +4016,11 @@ export interface StackQuerySpecifics {
      * Only accepts Server id (not name).
      */
     server_ids?: string[];
+    /**
+     * Query only for Stacks with these linked repos.
+     * Only accepts Repo id (not name).
+     */
+    linked_repos?: string[];
     /** Filter syncs by their repo. */
     repos?: string[];
     /** Query only for Stack with available image updates. */
@@ -4007,7 +4125,7 @@ export interface AwsBuilderConfig {
  * timestamped database dumps, which can be restored using
  * the Komodo CLI.
  *
- * TODO: Link to docs
+ * https://komo.do/docs/setup/backup
  */
 export interface BackupCoreDatabase {
 }
@@ -4018,7 +4136,7 @@ export interface BatchBuildRepo {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* repos
      * foo-*
      * # add some more
@@ -4034,7 +4152,7 @@ export interface BatchCloneRepo {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* repos
      * foo-*
      * # add some more
@@ -4050,7 +4168,7 @@ export interface BatchDeploy {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* deployments
      * foo-*
      * # add some more
@@ -4066,7 +4184,7 @@ export interface BatchDeployStack {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* stacks
      * foo-*
      * # add some more
@@ -4082,7 +4200,7 @@ export interface BatchDeployStackIfChanged {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* stacks
      * foo-*
      * # add some more
@@ -4098,7 +4216,7 @@ export interface BatchDestroyDeployment {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* deployments
      * foo-*
      * # add some more
@@ -4114,7 +4232,7 @@ export interface BatchDestroyStack {
      * Supports multiline and comma delineated combinations of the above.
      * d
      * Example:
-     * ```
+     * ```text
      * # match all foo-* stacks
      * foo-*
      * # add some more
@@ -4134,7 +4252,7 @@ export interface BatchPullRepo {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* repos
      * foo-*
      * # add some more
@@ -4150,7 +4268,7 @@ export interface BatchPullStack {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* stacks
      * foo-*
      * # add some more
@@ -4166,7 +4284,7 @@ export interface BatchRunAction {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* actions
      * foo-*
      * # add some more
@@ -4182,7 +4300,7 @@ export interface BatchRunBuild {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* builds
      * foo-*
      * # add some more
@@ -4198,7 +4316,7 @@ export interface BatchRunProcedure {
      * Supports multiline and comma delineated combinations of the above.
      *
      * Example:
-     * ```
+     * ```text
      * # match all foo-* procedures
      * foo-*
      * # add some more
@@ -5744,6 +5862,8 @@ export interface SystemStatsRecord {
     sid: string;
     /** Cpu usage percentage */
     cpu_perc: number;
+    /** Load average (1m, 5m, 15m) */
+    load_average?: SystemLoadAverage;
     /** Memory used in GB */
     mem_used_gb: number;
     /** Total memory in GB */
@@ -5963,6 +6083,8 @@ export interface GetServersSummaryResponse {
     total: I64;
     /** The number of healthy (`status: OK`) servers. */
     healthy: I64;
+    /** The number of servers with warnings (e.g., version mismatch). */
+    warning: I64;
     /** The number of unhealthy servers. */
     unhealthy: I64;
     /** The number of disabled servers. */
@@ -6139,12 +6261,12 @@ export interface GetVersionResponse {
     version: string;
 }
 /**
- * Trigger a global poll for image updateson Stacks and Deployments
+ * Trigger a global poll for image updates on Stacks and Deployments
  * with `poll_for_updates` or `auto_update` enabled.
  * Admin only. Response: [Update]
  *
  * 1. `docker compose pull` any Stacks / Deployments with `poll_for_updates` or `auto_update` enabled. This will pick up any available updates.
- * 2. Redeploy Stacks / Deployments that have updates found.
+ * 2. Redeploy Stacks / Deployments that have updates found and 'auto_update' enabled.
  */
 export interface GlobalAutoUpdate {
 }
@@ -6217,7 +6339,7 @@ export interface ListAlerts {
      * Pass a custom mongo query to filter the alerts.
      *
      * ## Example JSON
-     * ```
+     * ```json
      * {
      * "resolved": "false",
      * "level": "CRITICAL",
@@ -7172,6 +7294,31 @@ export interface RunProcedure {
     /** Id or name */
     procedure: string;
 }
+/** Runs a one-time command against a service using `docker compose run`. Response: [Update] */
+export interface RunStackService {
+    /** Id or name */
+    stack: string;
+    /** Service to run */
+    service: string;
+    /** Command and args to pass to the service container */
+    command?: string[];
+    /** Do not allocate TTY */
+    no_tty?: boolean;
+    /** Do not start linked services */
+    no_deps?: boolean;
+    /** Map service ports to the host */
+    service_ports?: boolean;
+    /** Extra environment variables for the run */
+    env?: Record<string, string>;
+    /** Working directory inside the container */
+    workdir?: string;
+    /** User to run as inside the container */
+    user?: string;
+    /** Override the default entrypoint */
+    entrypoint?: string;
+    /** Pull the image before running */
+    pull?: boolean;
+}
 /** Runs the target resource sync. Response: [Update] */
 export interface RunSync {
     /** Id or name */
@@ -7267,6 +7414,21 @@ export interface SearchStackLog {
     invert?: boolean;
     /** Enable `--timestamps` */
     timestamps?: boolean;
+}
+/** Send a custom alert message to configured Alerters. Response: [Update] */
+export interface SendAlert {
+    /** The alert level. */
+    level?: SeverityLevel;
+    /** The alert message. Required. */
+    message: string;
+    /** The alert details. Optional. */
+    details?: string;
+    /**
+     * Specific alerter names or ids.
+     * If empty / not passed, sends to all configured alerters
+     * with the `Custom` alert type whitelisted / not blacklisted.
+     */
+    alerters?: string[];
 }
 /** Configuration for a Komodo Server Builder. */
 export interface ServerBuilderConfig {
@@ -7968,6 +8130,9 @@ export type ExecuteRequest = {
     type: "BatchDestroyStack";
     params: BatchDestroyStack;
 } | {
+    type: "RunStackService";
+    params: RunStackService;
+} | {
     type: "Deploy";
     params: Deploy;
 } | {
@@ -8042,6 +8207,9 @@ export type ExecuteRequest = {
 } | {
     type: "TestAlerter";
     params: TestAlerter;
+} | {
+    type: "SendAlert";
+    params: SendAlert;
 } | {
     type: "RunSync";
     params: RunSync;
@@ -8140,18 +8308,6 @@ export declare enum IanaTimezone {
     /** UTC+14:00 */
     PacificKiritimati = "Pacific/Kiritimati"
 }
-/** Configuration for the registry to push the built image to. */
-export type ImageRegistryLegacy1_14 = 
-/** Don't push the image to any registry */
-{
-    type: "None";
-    params: NoData;
-}
-/** Push the image to a standard image registry (any domain) */
- | {
-    type: "Standard";
-    params: ImageRegistryConfig;
-};
 export type ReadRequest = {
     type: "GetVersion";
     params: GetVersion;

@@ -6,6 +6,7 @@ import { MinusCircle } from "lucide-react";
 
 const ALERT_TYPES: Types.AlertData["type"][] = [
   // Server
+  "ServerVersionMismatch",
   "ServerUnreachable",
   "ServerCpu",
   "ServerMem",
@@ -26,6 +27,7 @@ const ALERT_TYPES: Types.AlertData["type"][] = [
   "ActionFailed",
   "ProcedureFailed",
   "AwsBuilderTerminationFailed",
+  "Custom",
 ];
 
 export const AlertTypeConfig = ({
@@ -38,7 +40,7 @@ export const AlertTypeConfig = ({
   disabled: boolean;
 }) => {
   const at = ALERT_TYPES.filter(
-    (alert_type) => !alert_types.includes(alert_type)
+    (alert_type) => !alert_types.includes(alert_type),
   );
   return (
     <ConfigItem

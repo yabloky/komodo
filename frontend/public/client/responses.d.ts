@@ -220,7 +220,7 @@ export type WriteResponses = {
     DeleteResourceSync: Types.ResourceSync;
     UpdateResourceSync: Types.ResourceSync;
     RenameResourceSync: Types.Update;
-    CommitSync: Types.ResourceSync;
+    CommitSync: Types.Update;
     WriteSyncFileContents: Types.Update;
     RefreshResourceSyncPending: Types.ResourceSync;
     CreateSyncWebhook: Types.CreateSyncWebhookResponse;
@@ -308,7 +308,9 @@ export type ExecuteResponses = {
     PauseStackService: Types.Update;
     UnpauseStackService: Types.Update;
     DestroyStackService: Types.Update;
+    RunStackService: Types.Update;
     TestAlerter: Types.Update;
+    SendAlert: Types.Update;
     ClearRepoCache: Types.Update;
     BackupCoreDatabase: Types.Update;
     GlobalAutoUpdate: Types.Update;

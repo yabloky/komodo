@@ -102,6 +102,7 @@ pub enum ExecuteRequest {
   UnpauseStack(UnpauseStack),
   DestroyStack(DestroyStack),
   BatchDestroyStack(BatchDestroyStack),
+  RunStackService(RunStackService),
 
   // ==== DEPLOYMENT ====
   Deploy(Deploy),
@@ -139,6 +140,7 @@ pub enum ExecuteRequest {
 
   // ==== ALERTER ====
   TestAlerter(TestAlerter),
+  SendAlert(SendAlert),
 
   // ==== SYNC ====
   RunSync(RunSync),
@@ -219,24 +221,33 @@ pub fn inner_handler(
       ));
     }
 
+    // Spawn a task for the execution which continues
+    // running after this method returns.
     let handle =
       tokio::spawn(task(req_id, request, user, update.clone()));
 
+    // Spawns another task to monitor the first for failures,
+    // and add the log to Update about it (which primary task can't do because it errored out)
     tokio::spawn({
       let update_id = update.id.clone();
       async move {
         let log = match handle.await {
           Ok(Err(e)) => {
             warn!("/execute request {req_id} task error: {e:#}",);
-            Log::error("task error", format_serror(&e.into()))
+            Log::error("Task Error", format_serror(&e.into()))
           }
           Err(e) => {
             warn!("/execute request {req_id} spawn error: {e:?}",);
-            Log::error("spawn error", format!("{e:#?}"))
+            Log::error("Spawn Error", format!("{e:#?}"))
           }
           _ => return,
         };
         let res = async {
+          // Nothing to do if update was never actually created,
+          // which is the case when the id is empty.
+          if update_id.is_empty() {
+            return Ok(());
+          }
           let mut update =
             find_one_by_id(&db_client().updates, &update_id)
               .await

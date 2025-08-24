@@ -105,6 +105,7 @@ export var Operation;
     Operation["UnpauseStack"] = "UnpauseStack";
     Operation["StopStack"] = "StopStack";
     Operation["DestroyStack"] = "DestroyStack";
+    Operation["RunStackService"] = "RunStackService";
     Operation["DeployStackService"] = "DeployStackService";
     Operation["PullStackService"] = "PullStackService";
     Operation["StartStackService"] = "StartStackService";
@@ -159,6 +160,7 @@ export var Operation;
     Operation["RenameAlerter"] = "RenameAlerter";
     Operation["DeleteAlerter"] = "DeleteAlerter";
     Operation["TestAlerter"] = "TestAlerter";
+    Operation["SendAlert"] = "SendAlert";
     Operation["CreateResourceSync"] = "CreateResourceSync";
     Operation["UpdateResourceSync"] = "UpdateResourceSync";
     Operation["RenameResourceSync"] = "RenameResourceSync";
@@ -248,13 +250,34 @@ export var DeploymentState;
 /** Severity level of problem. */
 export var SeverityLevel;
 (function (SeverityLevel) {
-    /** No problem. */
+    /**
+     * No problem.
+     *
+     * Aliases: ok, low, l
+     */
     SeverityLevel["Ok"] = "OK";
-    /** Problem is imminent. */
+    /**
+     * Problem is imminent.
+     *
+     * Aliases: warning, w, medium, m
+     */
     SeverityLevel["Warning"] = "WARNING";
-    /** Problem fully realized. */
+    /**
+     * Problem fully realized.
+     *
+     * Aliases: critical, c, high, h
+     */
     SeverityLevel["Critical"] = "CRITICAL";
 })(SeverityLevel || (SeverityLevel = {}));
+export var StackFileRequires;
+(function (StackFileRequires) {
+    /** Diff requires service redeploy. */
+    StackFileRequires["Redeploy"] = "Redeploy";
+    /** Diff requires service restart */
+    StackFileRequires["Restart"] = "Restart";
+    /** Diff requires no action. Default. */
+    StackFileRequires["None"] = "None";
+})(StackFileRequires || (StackFileRequires = {}));
 export var Timelength;
 (function (Timelength) {
     /** `1-sec` */
