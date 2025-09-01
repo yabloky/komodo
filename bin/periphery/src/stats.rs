@@ -2,7 +2,8 @@ use std::{cmp::Ordering, sync::OnceLock};
 
 use async_timing_util::wait_until_timelength;
 use komodo_client::entities::stats::{
-  SingleDiskUsage, SystemInformation, SystemLoadAverage, SystemProcess, SystemStats,
+  SingleDiskUsage, SystemInformation, SystemLoadAverage,
+  SystemProcess, SystemStats,
 };
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::sync::RwLock;
