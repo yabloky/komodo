@@ -63,7 +63,7 @@ const useExchangeToken = () => {
 };
 
 export const Router = () => {
-  const { data: user, isLoading, error } = useUser();
+  const { data: user, error } = useUser();
 
   // Handle exchange token loop to avoid showing login flash
   const exchangeTokenPending = useExchangeToken();
@@ -75,9 +75,11 @@ export const Router = () => {
     );
   }
 
-  if (isLoading && !user) return null;
-
-  if (!user || error) return <Login />;
+  // Only how login once error indicating logged out state actually recieved
+  if (error) return <Login />;
+  // Don't display anything if !error and !user. This is loading state.
+  if (!user) return null;
+  // Don't try displaying pages if user disabled, will fail to load with many errors.
   if (!user.enabled) return <UserDisabled />;
 
   return (
