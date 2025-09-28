@@ -1,6 +1,6 @@
 # Komodo 🦎
 
-A tool to build and deploy software across many servers. 
+A tool to build and deploy software across many servers.
 
 🦎 [See the docs](https://komo.do)
 
