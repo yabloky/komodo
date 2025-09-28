@@ -1,0 +1,32 @@
+name: Mirror Komodo images to GHCR
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull upstream Komodo images
+        run: |
+          docker pull ghcr.io/moghtech/komodo-core:latest
+          docker pull ghcr.io/moghtech/komodo-periphery:latest
+
+      - name: Retag for GHCR
+        run: |
+          docker tag ghcr.io/moghtech/komodo-core:latest ghcr.io/yabloky/komodo-core:latest
+          docker tag ghcr.io/moghtech/komodo-periphery:latest ghcr.io/yabloky/komodo-periphery:latest
+
+      - name: Push to GHCR
+        run: |
+          docker push ghcr.io/yabloky/komodo-core:latest
+          docker push ghcr.io/yabloky/komodo-periphery:latest
