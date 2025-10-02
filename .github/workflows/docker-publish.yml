@@ -4,7 +4,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 1'  # Каждый понедельник в 3:00 UTC
+    - cron: '0 3 * * 1'
 jobs:
   mirror:
     runs-on: ubuntu-latest
@@ -19,7 +19,7 @@ jobs:
       - name: Get latest version
         id: version
         run: |
-          VERSION=$(curl -s https://api.github.com/repos/moghtech/komodo/releases/latest | jq -r .tag_name)
+          VERSION=$(curl -s https://api.github.com/repos/moghtech/komodo/releases/latest | jq -r .tag_name | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Mirroring version: $VERSION"
       
