@@ -1,32 +1,44 @@
 name: Mirror Komodo images to GHCR
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
+  schedule:
+    - cron: '0 3 * * 1'  # Каждый понедельник в 3:00 UTC
 jobs:
   mirror:
     runs-on: ubuntu-latest
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull upstream Komodo images
+      
+      - name: Get latest version
+        id: version
         run: |
-          docker pull ghcr.io/moghtech/komodo-core:latest
-          docker pull ghcr.io/moghtech/komodo-periphery:latest
-
-      - name: Retag for GHCR
+          VERSION=$(curl -s https://api.github.com/repos/moghtech/komodo/releases/latest | jq -r .tag_name)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Mirroring version: $VERSION"
+      
+      - name: Pull upstream images
         run: |
-          docker tag ghcr.io/moghtech/komodo-core:latest ghcr.io/yabloky/komodo-core:latest
-          docker tag ghcr.io/moghtech/komodo-periphery:latest ghcr.io/yabloky/komodo-periphery:latest
-
-      - name: Push to GHCR
+          docker pull ghcr.io/moghtech/komodo-core:${{ steps.version.outputs.version }}
+          docker pull ghcr.io/moghtech/komodo-periphery:${{ steps.version.outputs.version }}
+      
+      - name: Tag and push versioned + latest
         run: |
+          VERSION=${{ steps.version.outputs.version }}
+          
+          docker tag ghcr.io/moghtech/komodo-core:$VERSION ghcr.io/yabloky/komodo-core:$VERSION
+          docker tag ghcr.io/moghtech/komodo-periphery:$VERSION ghcr.io/yabloky/komodo-periphery:$VERSION
+          
+          docker tag ghcr.io/moghtech/komodo-core:$VERSION ghcr.io/yabloky/komodo-core:latest
+          docker tag ghcr.io/moghtech/komodo-periphery:$VERSION ghcr.io/yabloky/komodo-periphery:latest
+          
+          docker push ghcr.io/yabloky/komodo-core:$VERSION
+          docker push ghcr.io/yabloky/komodo-periphery:$VERSION
           docker push ghcr.io/yabloky/komodo-core:latest
           docker push ghcr.io/yabloky/komodo-periphery:latest
